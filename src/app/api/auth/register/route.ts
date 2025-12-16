@@ -5,6 +5,12 @@ import bcrypt from "bcrypt";
 export async function POST(req: Request) {
     try {
         console.log('📝 [REGISTER] Iniciando registro...');
+        console.log('🔌 [REGISTER] DATABASE_URL:', process.env.DATABASE_URL);
+
+        // Testa a conexão
+        const dbInfo: any = await prisma.$queryRaw`SELECT current_database() as db, current_schema() as schema`;
+        console.log('🗄️ [REGISTER] Conectado em:', dbInfo);
+
         const body = await req.json();
         const { email, password, displayName } = body || {};
         console.log('📧 [REGISTER] Email:', email);
