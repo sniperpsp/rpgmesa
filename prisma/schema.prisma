@@ -15,6 +15,7 @@ model User {
   email        String   @unique
   passwordHash String   @map("password_hash")
   displayName  String?  @map("display_name")
+  isAdmin      Boolean  @default(false) @map("is_admin")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -26,6 +27,9 @@ model User {
   classTemplates       ClassTemplate[]
   raceTemplates        RaceTemplate[]
   abilityTemplates     AbilityTemplate[]
+  weaponTemplates      WeaponTemplate[]
+  itemTemplates        ItemTemplate[]
+  monsterTemplates     MonsterTemplate[]
 
   @@map("users")
 }
@@ -85,6 +89,7 @@ model Room {
   name        String?
   joinCode    String   @unique @map("join_code")
   rules       String?
+  diceSystem  String   @default("D20") @map("dice_system")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -93,6 +98,7 @@ model Room {
   characterRooms    CharacterRoom[]
   events            EventsLog[]
   encounters        Encounter[]
+  stories           Story[]
   monsterSuggestions MonsterSuggestion[]
 
   @@index([gmUserId])
@@ -309,4 +315,103 @@ model AbilityTemplate {
   @@index([ownerUserId])
   @@index([storyType])
   @@map("ability_templates")
+}
+
+model WeaponTemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  description String?
+  isGlobal    Boolean  @default(false) @map("is_global")
+  ownerUserId String?  @map("owner_user_id") @db.Uuid
+  damage      Int      @default(5)
+  damageType  String   @default("físico") @map("damage_type")
+  range       String   @default("corpo-a-corpo")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  owner User? @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([ownerUserId])
+  @@map("weapon_templates")
+}
+
+model ItemTemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  description String?
+  isGlobal    Boolean  @default(false) @map("is_global")
+  ownerUserId String?  @map("owner_user_id") @db.Uuid
+  itemType    String   @default("consumível") @map("item_type")
+  effect      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  owner User? @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([ownerUserId])
+  @@map("item_templates")
+}
+
+model MonsterTemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  description String?
+  isGlobal    Boolean  @default(false) @map("is_global")
+  ownerUserId String?  @map("owner_user_id") @db.Uuid
+  hp          Int      @default(50)
+  attack      Int      @default(10)
+  defense     Int      @default(5)
+  level       Int      @default(1)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  owner User? @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([ownerUserId])
+  @@map("monster_templates")
+}
+
+model Story {
+  id        String   @id @default(uuid()) @db.Uuid
+  roomId    String   @map("room_id") @db.Uuid
+  title     String
+  summary   String?  @db.Text
+  status    String   @default("draft") // draft, active, finished
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  acts Act[]
+
+  @@map("stories")
+}
+
+model Act {
+  id          String   @id @default(uuid()) @db.Uuid
+  storyId     String   @map("story_id") @db.Uuid
+  order       Int
+  title       String
+  description String?  @db.Text
+  status      String   @default("pending") // pending, active, completed
+  
+  story   Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  scenes  Scene[]
+
+  @@map("acts")
+}
+
+model Scene {
+  id          String   @id @default(uuid()) @db.Uuid
+  actId       String   @map("act_id") @db.Uuid
+  order       Int
+  content     String   @db.Text
+  imageUrl    String?  @map("image_url")
+  isActive    Boolean  @default(false) @map("is_active")
+
+  act Act @relation(fields: [actId], references: [id], onDelete: Cascade)
+  
+  @@map("scenes")
 }

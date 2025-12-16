@@ -1,0 +1,42 @@
+
+model Story {
+  id        String   @id @default(uuid()) @db.Uuid
+  roomId    String   @map("room_id") @db.Uuid
+  title     String
+  summary   String?  @db.Text
+  status    String   @default("draft") // draft, active, finished
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  acts Act[]
+
+  @@map("stories")
+}
+
+model Act {
+  id          String   @id @default(uuid()) @db.Uuid
+  storyId     String   @map("story_id") @db.Uuid
+  order       Int
+  title       String
+  description String?  @db.Text
+  status      String   @default("pending") // pending, active, completed
+  
+  story   Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  scenes  Scene[]
+
+  @@map("acts")
+}
+
+model Scene {
+  id          String   @id @default(uuid()) @db.Uuid
+  actId       String   @map("act_id") @db.Uuid
+  order       Int
+  content     String   @db.Text
+  imageUrl    String?  @map("image_url")
+  isActive    Boolean  @default(false) @map("is_active")
+
+  act Act @relation(fields: [actId], references: [id], onDelete: Cascade)
+  
+  @@map("scenes")
+}

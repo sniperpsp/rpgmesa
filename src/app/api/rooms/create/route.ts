@@ -16,12 +16,13 @@ export async function POST(request: Request) {
     }
 
     try {
-        const { name } = await request.json();
+        const { name, diceSystem } = await request.json();
         const joinCode = generateCode();
 
         const room = await prisma.room.create({
             data: {
                 name: name || "Nova Sala",
+                diceSystem: diceSystem || "D20",
                 joinCode,
                 gmUserId: session.userId,
                 members: {

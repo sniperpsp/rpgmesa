@@ -15,6 +15,14 @@
 - ✅ Deletar personagens
 - ✅ Auto-criação de templates
 
+### Salas
+- ✅ API de criação
+- ✅ API de entrada
+- ✅ API de listagem de salas
+- ✅ Lobby com criação/entrada em salas
+- ✅ Página do GM
+- ✅ Página do Jogador
+
 ### Interface
 - ✅ Página inicial
 - ✅ Login/Register modernas
@@ -27,30 +35,42 @@
 - ✅ Todas as tabelas criadas
 - ✅ Prisma configurado
 
-## 🚧 EM DESENVOLVIMENTO
-
-### Salas
-- 🚧 API de criação (parcial)
-- ⏳ API de entrada
-- ⏳ Listagem de salas
-- ⏳ Página do GM
-- ⏳ Página do Jogador
-
 ### Templates
-- ⏳ API de templates
-- ⏳ Página de gerenciamento
+- ✅ API de classes
+- ✅ API de raças
+- ✅ API de habilidades
+- ✅ Página de gerenciamento
+- ✅ Templates globais padrão
+
+### Sistema de Dados
+- ✅ Componente de rolagem de dados
+- ✅ Suporte a múltiplos tipos (d4, d6, d8, d10, d12, d20, d100)
+- ✅ Modificadores de rolagem
+- ✅ Integração na página do jogador
+
+## 🚧 EM DESENVOLVIMENTO
 
 ### IA
 - ⏳ Geração de avatares
 - ⏳ Sugestões de habilidades
 
+### Encontros
+- ⏳ Sistema de combate
+- ⏳ Gerenciamento de NPCs
+- ⏳ Iniciativa e turnos
+
+### Chat
+- ⏳ Chat em tempo real
+- ⏳ WebSockets
+- ⏳ Histórico de mensagens
+
 ## 📝 PRÓXIMOS PASSOS
 
-1. Completar APIs de salas
-2. Criar páginas GM e Jogador
-3. Sistema de templates
-4. Integração com Mistral AI
-5. Sistema de combate/encontros
+1. Sistema de encontros e combate
+2. Integração com Mistral AI
+3. Chat em tempo real
+4. Sistema de NPCs
+5. Melhorias de UI/UX
 
 ## 🔧 Configuração
 
