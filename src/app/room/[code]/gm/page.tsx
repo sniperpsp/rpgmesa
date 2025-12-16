@@ -569,6 +569,26 @@ export default function GMPage() {
                                                 >
                                                     {encounter.isActive ? '⚔️ Ativo' : '▶️ Ativar'}
                                                 </button>
+                                                <button
+                                                    onClick={async () => {
+                                                        if (confirm(`Deletar encontro "${encounter.name}"?`)) {
+                                                            try {
+                                                                const res = await fetch(`/api/encounters/${encounter.id}`, {
+                                                                    method: 'DELETE'
+                                                                });
+                                                                if (res.ok) {
+                                                                    loadRoom();
+                                                                }
+                                                            } catch (e) {
+                                                                console.error(e);
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="px-4 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/40 text-red-300 font-semibold transition-all"
+                                                    disabled={encounter.isActive}
+                                                >
+                                                    🗑️ Deletar
+                                                </button>
                                             </div>
                                         </div>
 
@@ -582,8 +602,8 @@ export default function GMPage() {
                                                     <div
                                                         key={p.id}
                                                         className={`rounded-xl p-4 border transition-all ${currentTurn?.id === p.id
-                                                                ? 'bg-emerald-500/20 border-emerald-400 ring-2 ring-emerald-400'
-                                                                : 'bg-emerald-500/5 border-emerald-500/30'
+                                                            ? 'bg-emerald-500/20 border-emerald-400 ring-2 ring-emerald-400'
+                                                            : 'bg-emerald-500/5 border-emerald-500/30'
                                                             }`}
                                                     >
                                                         <div className="flex justify-between items-start mb-3">
@@ -670,8 +690,8 @@ export default function GMPage() {
                                                     <div
                                                         key={p.id}
                                                         className={`rounded-xl p-4 border transition-all ${currentTurn?.id === p.id
-                                                                ? 'bg-red-500/20 border-red-400 ring-2 ring-red-400'
-                                                                : 'bg-red-500/5 border-red-500/30'
+                                                            ? 'bg-red-500/20 border-red-400 ring-2 ring-red-400'
+                                                            : 'bg-red-500/5 border-red-500/30'
                                                             }`}
                                                     >
                                                         <div className="flex justify-between items-start mb-3">
