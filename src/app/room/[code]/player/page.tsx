@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { DiceRoller } from "@/components/DiceRoller";
+import { TurnNotification } from "@/components/TurnNotification";
+import { AnimatedDice } from "@/components/AnimatedDice";
+import { CombatHistory } from "@/components/CombatHistory";
 
 interface Room {
     id: string;
@@ -61,10 +64,53 @@ export default function PlayerPage() {
     const [showAddCharacter, setShowAddCharacter] = useState(false);
     const [myCharacters, setMyCharacters] = useState<any[]>([]);
 
+    // Combat states
+    const [combatActions, setCombatActions] = useState<any[]>([]);
+    const [isMyTurn, setIsMyTurn] = useState(false);
+    const [showAttackModal, setShowAttackModal] = useState(false);
+    const [attackTarget, setAttackTarget] = useState<any>(null);
+    const [attackType, setAttackType] = useState<'melee' | 'ranged'>('melee');
+
     useEffect(() => {
         loadRoom();
         loadMyCharacters();
+
+        // Atualizar a cada 3 segundos para ver mudanças de turno
+        const interval = setInterval(loadRoom, 3000);
+        return () => clearInterval(interval);
     }, [code]);
+
+    useEffect(() => {
+        if (room && room.userCharacters[selectedCharacter]) {
+            checkIfMyTurn();
+        }
+    }, [room, selectedCharacter]);
+
+    function checkIfMyTurn() {
+        const currentChar = room?.userCharacters[selectedCharacter];
+        if (!currentChar) return;
+
+        // Buscar encontro ativo
+        const activeEncounter = (room as any)?.encounters?.find((e: any) => e.isActive);
+        if (!activeEncounter) {
+            setIsMyTurn(false);
+            return;
+        }
+
+        // Buscar participante do jogador
+        const myParticipant = activeEncounter.participants?.find(
+            (p: any) => p.name === currentChar.character.name && !p.isNPC
+        );
+
+        if (!myParticipant) {
+            setIsMyTurn(false);
+            return;
+        }
+
+        // Verificar se é o turno dele (assumindo que o GM controla o índice)
+        // Por enquanto, vamos permitir que o jogador role quando quiser durante combate ativo
+        setIsMyTurn(activeEncounter.isActive);
+    }
 
     async function loadRoom() {
         try {
@@ -136,6 +182,12 @@ export default function PlayerPage() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950 text-neutral-100">
+            {/* Turn Notification */}
+            <TurnNotification
+                isYourTurn={isMyTurn}
+                characterName={currentCharacter?.character.name || ''}
+            />
+
             {/* Decorative background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute top-20 left-20 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl" />
@@ -276,6 +328,43 @@ export default function PlayerPage() {
                                     </div>
                                 )}
                             </div>
+
+                            {/* Combat Section */}
+                            {isMyTurn && (
+                                <div className="bg-gradient-to-br from-red-900/20 to-orange-900/20 backdrop-blur-xl border-2 border-red-500/50 rounded-3xl p-6 shadow-2xl">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <span className="text-3xl animate-pulse">⚔️</span>
+                                        <div>
+                                            <h3 className="text-2xl font-bold text-red-400">Combate Ativo!</h3>
+                                            <p className="text-sm text-neutral-400">Role os dados para atacar</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <AnimatedDice
+                                            sides={20}
+                                            onRoll={(result) => {
+                                                console.log('Ataque rolado:', result);
+                                                // Aqui você pode adicionar lógica para processar o ataque
+                                            }}
+                                            label="🗡️ Ataque"
+                                        />
+                                        <AnimatedDice
+                                            sides={6}
+                                            onRoll={(result) => {
+                                                console.log('Dano rolado:', result);
+                                            }}
+                                            label="💥 Dano"
+                                        />
+                                    </div>
+
+                                    <div className="mt-4 p-3 bg-black/30 rounded-xl">
+                                        <p className="text-xs text-neutral-400 text-center">
+                                            💡 Role d20 para atacar, depois d6 para dano
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Dice Roller */}
                             <DiceRoller
