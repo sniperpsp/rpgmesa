@@ -123,6 +123,9 @@ export default function GMPage() {
     const [activeEncounterId, setActiveEncounterId] = useState<string | null>(null);
     const [combatLog, setCombatLog] = useState<any[]>([]);
     const [attackType, setAttackType] = useState<'melee' | 'ranged'>('melee');
+    const [currentTurnIndex, setCurrentTurnIndex] = useState(0);
+    const [showDiceRoller, setShowDiceRoller] = useState(false);
+    const [diceResult, setDiceResult] = useState<number | null>(null);
 
     useEffect(() => {
         loadRoom();
@@ -244,6 +247,22 @@ export default function GMPage() {
     }
 
     async function handleToggleEncounter(encounterId: string, isActive: boolean) {
+        // Se ativando, rolar iniciativa para todos
+        if (isActive) {
+            const encounter = room?.encounters.find(e => e.id === encounterId);
+            if (encounter) {
+                // Rolar iniciativa aleatória para cada participante
+                for (const p of encounter.participants) {
+                    const initiative = Math.floor(Math.random() * 20) + 1;
+                    await fetch(`/api/participants/${p.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ initiative }),
+                    });
+                }
+            }
+        }
+
         try {
             const res = await fetch(`/api/encounters/${encounterId}`, {
                 method: "PATCH",
@@ -251,6 +270,7 @@ export default function GMPage() {
                 body: JSON.stringify({ isActive }),
             });
             if (res.ok) {
+                setCurrentTurnIndex(0);
                 loadRoom();
             }
         } catch (e) {
@@ -518,91 +538,218 @@ export default function GMPage() {
                                 <p className="text-neutral-600 text-sm mt-2">Crie encontros pela aba História (IA) ou manualmente.</p>
                             </div>
                         ) : (
-                            room.encounters.map(encounter => (
-                                <div key={encounter.id} className="bg-neutral-900/50 backdrop-blur-xl border border-neutral-800/50 rounded-3xl p-6">
-                                    <div className="flex justify-between items-center mb-6">
-                                        <div>
-                                            <h3 className="text-2xl font-bold">{encounter.name}</h3>
-                                            <p className="text-sm text-neutral-500">{encounter.participants.length} participantes</p>
-                                        </div>
-                                        <button
-                                            onClick={() => handleToggleEncounter(encounter.id, !encounter.isActive)}
-                                            className={`px-4 py-2 rounded-xl font-semibold transition-all ${encounter.isActive ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-neutral-700/50 text-neutral-400 hover:bg-neutral-600/50'}`}
-                                        >
-                                            {encounter.isActive ? '⚔️ Ativo' : '▶️ Ativar'}
-                                        </button>
-                                    </div>
+                            room.encounters.map(encounter => {
+                                // Separar jogadores e NPCs
+                                const players = encounter.participants.filter(p => !p.isNPC).sort((a, b) => b.initiative - a.initiative);
+                                const npcs = encounter.participants.filter(p => p.isNPC).sort((a, b) => b.initiative - a.initiative);
+                                const allParticipants = [...players, ...npcs];
+                                const currentTurn = encounter.isActive && allParticipants[currentTurnIndex];
 
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                        {encounter.participants.map(p => (
-                                            <div key={p.id} className={`rounded-xl p-4 border ${p.isNPC ? 'bg-red-500/5 border-red-500/30' : 'bg-emerald-500/5 border-emerald-500/30'}`}>
-                                                <div className="flex justify-between items-start mb-3">
-                                                    <div>
-                                                        <h4 className="font-bold text-lg">{p.name}</h4>
-                                                        <p className="text-xs text-neutral-500">{p.isNPC ? '👹 NPC' : '🎮 Jogador'}</p>
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => {
-                                                                setAttacker(p);
-                                                                setActiveEncounterId(encounter.id);
-                                                                setShowAttackModal(true);
-                                                            }}
-                                                            className="text-xs px-2 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg"
-                                                            disabled={!encounter.isActive}
-                                                        >
-                                                            ⚔️ Atacar
-                                                        </button>
-                                                        <button
-                                                            onClick={() => {
-                                                                setSelectedParticipant(p);
-                                                                setShowStatusModal(true);
-                                                            }}
-                                                            className="text-xs px-2 py-1 bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 rounded-lg"
-                                                        >
-                                                            + Status
-                                                        </button>
-                                                    </div>
-                                                </div>
-
-                                                <div className="space-y-2 mb-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-xs text-neutral-500 w-12">HP:</span>
-                                                        <input
-                                                            type="number"
-                                                            value={p.hp}
-                                                            onChange={(e) => handleUpdateParticipant(p.id, { hp: parseInt(e.target.value) })}
-                                                            className="flex-1 bg-black/40 border border-red-500/30 rounded px-2 py-1 text-sm"
-                                                        />
-                                                        <span className="text-xs text-neutral-500">/ {p.maxHp}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-xs text-neutral-500 w-12">Mana:</span>
-                                                        <input
-                                                            type="number"
-                                                            value={p.mana}
-                                                            onChange={(e) => handleUpdateParticipant(p.id, { mana: parseInt(e.target.value) })}
-                                                            className="flex-1 bg-black/40 border border-blue-500/30 rounded px-2 py-1 text-sm"
-                                                        />
-                                                        <span className="text-xs text-neutral-500">/ {p.maxMana}</span>
-                                                    </div>
-                                                </div>
-
-                                                {p.statusEffects && p.statusEffects.length > 0 && (
-                                                    <div className="space-y-1">
-                                                        {p.statusEffects.map((status, idx) => (
-                                                            <div key={idx} className="text-xs bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1 flex justify-between">
-                                                                <span>🔥 {status.name}</span>
-                                                                <span className="text-neutral-500">{status.duration} turnos</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
+                                return (
+                                    <div key={encounter.id} className="bg-neutral-900/50 backdrop-blur-xl border border-neutral-800/50 rounded-3xl p-6">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <div>
+                                                <h3 className="text-2xl font-bold">{encounter.name}</h3>
+                                                <p className="text-sm text-neutral-500">{encounter.participants.length} participantes</p>
                                             </div>
-                                        ))}
+                                            <div className="flex gap-3">
+                                                {encounter.isActive && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setCurrentTurnIndex((prev) => (prev + 1) % allParticipants.length);
+                                                        }}
+                                                        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-all"
+                                                    >
+                                                        ⏭️ Próximo Turno
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => handleToggleEncounter(encounter.id, !encounter.isActive)}
+                                                    className={`px-4 py-2 rounded-xl font-semibold transition-all ${encounter.isActive ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-neutral-700/50 text-neutral-400 hover:bg-neutral-600/50'}`}
+                                                >
+                                                    {encounter.isActive ? '⚔️ Ativo' : '▶️ Ativar'}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* JOGADORES */}
+                                        <div className="mb-6">
+                                            <h4 className="text-emerald-400 font-bold mb-3 flex items-center gap-2">
+                                                🎮 Jogadores
+                                            </h4>
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                                {players.map(p => (
+                                                    <div
+                                                        key={p.id}
+                                                        className={`rounded-xl p-4 border transition-all ${currentTurn?.id === p.id
+                                                                ? 'bg-emerald-500/20 border-emerald-400 ring-2 ring-emerald-400'
+                                                                : 'bg-emerald-500/5 border-emerald-500/30'
+                                                            }`}
+                                                    >
+                                                        <div className="flex justify-between items-start mb-3">
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <h4 className="font-bold text-lg">{p.name}</h4>
+                                                                    {currentTurn?.id === p.id && (
+                                                                        <span className="text-xs px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded-full animate-pulse">
+                                                                            SUA VEZ
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-xs text-neutral-500">Iniciativa: {p.initiative}</p>
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setAttacker(p);
+                                                                        setActiveEncounterId(encounter.id);
+                                                                        setShowAttackModal(true);
+                                                                    }}
+                                                                    className="text-xs px-2 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg"
+                                                                    disabled={!encounter.isActive}
+                                                                >
+                                                                    ⚔️ Atacar
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedParticipant(p);
+                                                                        setShowStatusModal(true);
+                                                                    }}
+                                                                    className="text-xs px-2 py-1 bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 rounded-lg"
+                                                                >
+                                                                    + Status
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="space-y-2 mb-3">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs text-neutral-500 w-12">HP:</span>
+                                                                <input
+                                                                    type="number"
+                                                                    value={p.hp}
+                                                                    onChange={(e) => handleUpdateParticipant(p.id, { hp: parseInt(e.target.value) })}
+                                                                    className="flex-1 bg-black/40 border border-red-500/30 rounded px-2 py-1 text-sm"
+                                                                />
+                                                                <span className="text-xs text-neutral-500">/ {p.maxHp}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs text-neutral-500 w-12">Mana:</span>
+                                                                <input
+                                                                    type="number"
+                                                                    value={p.mana}
+                                                                    onChange={(e) => handleUpdateParticipant(p.id, { mana: parseInt(e.target.value) })}
+                                                                    className="flex-1 bg-black/40 border border-blue-500/30 rounded px-2 py-1 text-sm"
+                                                                />
+                                                                <span className="text-xs text-neutral-500">/ {p.maxMana}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        {p.statusEffects && p.statusEffects.length > 0 && (
+                                                            <div className="space-y-1">
+                                                                {p.statusEffects.map((status, idx) => (
+                                                                    <div key={idx} className="text-xs bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1 flex justify-between">
+                                                                        <span>🔥 {status.name}</span>
+                                                                        <span className="text-neutral-500">{status.duration} turnos</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* NPCs/MONSTROS */}
+                                        <div>
+                                            <h4 className="text-red-400 font-bold mb-3 flex items-center gap-2">
+                                                👹 Inimigos
+                                            </h4>
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                                {npcs.map(p => (
+                                                    <div
+                                                        key={p.id}
+                                                        className={`rounded-xl p-4 border transition-all ${currentTurn?.id === p.id
+                                                                ? 'bg-red-500/20 border-red-400 ring-2 ring-red-400'
+                                                                : 'bg-red-500/5 border-red-500/30'
+                                                            }`}
+                                                    >
+                                                        <div className="flex justify-between items-start mb-3">
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <h4 className="font-bold text-lg">{p.name}</h4>
+                                                                    {currentTurn?.id === p.id && (
+                                                                        <span className="text-xs px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded-full animate-pulse">
+                                                                            SUA VEZ
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-xs text-neutral-500">Iniciativa: {p.initiative}</p>
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setAttacker(p);
+                                                                        setActiveEncounterId(encounter.id);
+                                                                        setShowAttackModal(true);
+                                                                    }}
+                                                                    className="text-xs px-2 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg"
+                                                                    disabled={!encounter.isActive}
+                                                                >
+                                                                    ⚔️ Atacar
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedParticipant(p);
+                                                                        setShowStatusModal(true);
+                                                                    }}
+                                                                    className="text-xs px-2 py-1 bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 rounded-lg"
+                                                                >
+                                                                    + Status
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="space-y-2 mb-3">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs text-neutral-500 w-12">HP:</span>
+                                                                <input
+                                                                    type="number"
+                                                                    value={p.hp}
+                                                                    onChange={(e) => handleUpdateParticipant(p.id, { hp: parseInt(e.target.value) })}
+                                                                    className="flex-1 bg-black/40 border border-red-500/30 rounded px-2 py-1 text-sm"
+                                                                />
+                                                                <span className="text-xs text-neutral-500">/ {p.maxHp}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs text-neutral-500 w-12">Mana:</span>
+                                                                <input
+                                                                    type="number"
+                                                                    value={p.mana}
+                                                                    onChange={(e) => handleUpdateParticipant(p.id, { mana: parseInt(e.target.value) })}
+                                                                    className="flex-1 bg-black/40 border border-blue-500/30 rounded px-2 py-1 text-sm"
+                                                                />
+                                                                <span className="text-xs text-neutral-500">/ {p.maxMana}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        {p.statusEffects && p.statusEffects.length > 0 && (
+                                                            <div className="space-y-1">
+                                                                {p.statusEffects.map((status, idx) => (
+                                                                    <div key={idx} className="text-xs bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1 flex justify-between">
+                                                                        <span>🔥 {status.name}</span>
+                                                                        <span className="text-neutral-500">{status.duration} turnos</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 )}

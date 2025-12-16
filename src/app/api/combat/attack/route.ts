@@ -97,9 +97,8 @@ export async function POST(request: Request) {
         let newHp = target.hp;
 
         if (hit) {
-            // Calcular dano base (força/destreza + d6)
-            const damageRoll = Math.floor(Math.random() * 6) + 1;
-            damage = attackBonus + damageRoll;
+            // Dano = Força ou Destreza do atacante
+            damage = attackBonus;
 
             // Crítico = dano dobrado
             if (isCritical) {
