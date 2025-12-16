@@ -285,6 +285,10 @@ Retorne APENAS o prompt, sem explicações ou formatação adicional.`;
             }
         }
 
+        // Gerar multiplicadores aleatórios baseados na classe
+        const { getRandomMultiplier } = await import('@/lib/classMultipliers');
+        const multipliers = getRandomMultiplier(charClass);
+
         const character = await prisma.character.create({
             data: {
                 ownerUserId: userId,
@@ -294,7 +298,11 @@ Retorne APENAS o prompt, sem explicações ou formatação adicional.`;
                 notes: notes ?? null,
                 avatarUrl: finalAvatarUrl ?? null,
                 stats: {
-                    create: statsData
+                    create: {
+                        ...statsData,
+                        hpMultiplier: multipliers.hp,
+                        manaMultiplier: multipliers.mana
+                    }
                 },
             },
             include: { stats: true, abilities: true },

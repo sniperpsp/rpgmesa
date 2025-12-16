@@ -141,6 +141,8 @@ model CharacterRoomStats {
   characterRoomId  String @unique @map("character_room_id") @db.Uuid
   hp               Int    @default(10)
   mana             Int    @default(5)
+  hpMultiplier     Float  @default(2.5) @map("hp_multiplier")
+  manaMultiplier   Float  @default(2.5) @map("mana_multiplier")
   forca            Int    @default(3)
   destreza         Int    @default(3)
   inteligencia     Int    @default(3)

@@ -4,9 +4,6 @@ import { sessionOptions, SessionData } from '@/lib/session';
 import { cookies } from 'next/headers';
 import { prisma } from "@/lib/prisma";
 
-const HP_MULTIPLIER = 2.5;
-const MANA_MULTIPLIER = 2.5;
-
 export async function POST(request: Request) {
     const session = await getIronSession<SessionData>(await cookies(), sessionOptions);
     if (!session.isLoggedIn || !session.userId) {
@@ -47,10 +44,10 @@ export async function POST(request: Request) {
         // Adicionar jogadores se solicitado
         const playerParticipants = addPlayers ? room.characterRooms.map(cr => ({
             name: cr.character.name,
-            hp: cr.roomStats ? Math.round(cr.roomStats.hp * HP_MULTIPLIER) : 25,
-            maxHp: cr.roomStats ? Math.round(cr.roomStats.hp * HP_MULTIPLIER) : 25,
-            mana: cr.roomStats ? Math.round(cr.roomStats.mana * MANA_MULTIPLIER) : 12,
-            maxMana: cr.roomStats ? Math.round(cr.roomStats.mana * MANA_MULTIPLIER) : 12,
+            hp: cr.roomStats ? Math.round(cr.roomStats.hp * cr.roomStats.hpMultiplier) : 25,
+            maxHp: cr.roomStats ? Math.round(cr.roomStats.hp * cr.roomStats.hpMultiplier) : 25,
+            mana: cr.roomStats ? Math.round(cr.roomStats.mana * cr.roomStats.manaMultiplier) : 12,
+            maxMana: cr.roomStats ? Math.round(cr.roomStats.mana * cr.roomStats.manaMultiplier) : 12,
             initiative: 0,
             isNPC: false,
             statusEffects: []

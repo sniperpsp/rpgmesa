@@ -3,9 +3,6 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 
-const HP_MULTIPLIER = 2.5;
-const MANA_MULTIPLIER = 2.5;
-
 interface StatusEffect {
     name: string;
     duration: number;
@@ -53,6 +50,8 @@ interface Room {
         roomStats: {
             hp: number;
             mana: number;
+            hpMultiplier: number;
+            manaMultiplier: number;
             forca: number;
             destreza: number;
             inteligencia: number;
@@ -472,8 +471,8 @@ export default function GMPage() {
                                                             ✏️
                                                         </button>
                                                     </div>
-                                                    <p className="text-xl font-bold">{Math.round(cr.roomStats.hp * HP_MULTIPLIER)}</p>
-                                                    <p className="text-xs text-neutral-500">{cr.roomStats.hp} pontos × {HP_MULTIPLIER}</p>
+                                                    <p className="text-xl font-bold">{Math.round(cr.roomStats.hp * cr.roomStats.hpMultiplier)}</p>
+                                                    <p className="text-xs text-neutral-500">{cr.roomStats.hp} pontos × {cr.roomStats.hpMultiplier.toFixed(2)}</p>
                                                 </div>
                                                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
                                                     <div className="flex justify-between items-center mb-2">
@@ -488,8 +487,8 @@ export default function GMPage() {
                                                             ✏️
                                                         </button>
                                                     </div>
-                                                    <p className="text-xl font-bold">{Math.round(cr.roomStats.mana * MANA_MULTIPLIER)}</p>
-                                                    <p className="text-xs text-neutral-500">{cr.roomStats.mana} pontos × {MANA_MULTIPLIER}</p>
+                                                    <p className="text-xl font-bold">{Math.round(cr.roomStats.mana * cr.roomStats.manaMultiplier)}</p>
+                                                    <p className="text-xs text-neutral-500">{cr.roomStats.mana} pontos × {cr.roomStats.manaMultiplier.toFixed(2)}</p>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-2 text-sm">
                                                     <div className="bg-neutral-900/50 rounded-lg p-2">
@@ -866,8 +865,8 @@ export default function GMPage() {
                                         key={target.id}
                                         onClick={() => handleAttack(target.id)}
                                         className={`w-full p-4 rounded-xl text-left transition-all ${target.isNPC
-                                                ? 'bg-red-500/10 border border-red-500/30 hover:bg-red-500/20'
-                                                : 'bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20'
+                                            ? 'bg-red-500/10 border border-red-500/30 hover:bg-red-500/20'
+                                            : 'bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20'
                                             }`}
                                     >
                                         <div className="flex justify-between items-center">
