@@ -5,13 +5,13 @@ import { sessionOptions, SessionData } from '@/lib/session';
 import { cookies } from 'next/headers';
 import { prisma } from "@/lib/prisma";
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
     const session = await getIronSession<SessionData>(await cookies(), sessionOptions);
     if (!session.isLoggedIn || !session.userId) {
         return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     }
 
-    const sceneId = params.id;
+    const { id: sceneId } = await params;
 
     try {
         const scene = await prisma.scene.findUnique({

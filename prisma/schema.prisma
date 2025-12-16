@@ -204,13 +204,16 @@ model Encounter {
 }
 
 model EncounterParticipant {
-  id          String  @id @default(uuid()) @db.Uuid
-  encounterId String  @map("encounter_id") @db.Uuid
-  name        String
-  hp          Int     @default(10)
-  maxHp       Int     @default(10) @map("max_hp")
-  initiative  Int     @default(0)
-  isNPC       Boolean @default(false) @map("is_npc")
+  id            String  @id @default(uuid()) @db.Uuid
+  encounterId   String  @map("encounter_id") @db.Uuid
+  name          String
+  hp            Int     @default(10)
+  maxHp         Int     @default(10) @map("max_hp")
+  mana          Int     @default(0)
+  maxMana       Int     @default(0) @map("max_mana")
+  initiative    Int     @default(0)
+  isNPC         Boolean @default(false) @map("is_npc")
+  statusEffects Json?   @map("status_effects") // Array de {name, duration, effect}
 
   encounter Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
 
@@ -396,6 +399,8 @@ model Act {
   title       String
   description String?  @db.Text
   status      String   @default("pending") // pending, active, completed
+  metadata    Json?    // Para guardar sugestões de monstros, puzzles, etc.
+  events      String?  @db.Text // Acontecimentos registrados pelo GM
   
   story   Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
   scenes  Scene[]

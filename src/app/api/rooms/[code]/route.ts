@@ -56,9 +56,6 @@ export async function GET(
                     }
                 },
                 encounters: {
-                    where: {
-                        isActive: true
-                    },
                     include: {
                         participants: true
                     }

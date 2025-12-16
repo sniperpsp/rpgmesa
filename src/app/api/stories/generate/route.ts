@@ -27,30 +27,38 @@ export async function POST(request: Request) {
 
         console.log('📖 [MISTRAL] Gerando história para sala:', room.name, 'Tema:', theme);
 
-        const prompt = `Você é um Mestre de RPG experiente (Dungeon Master) criando uma campanha épica e estruturada.
+        const prompt = `Você é um Mestre de RPG experiente (Dungeon Master) criando uma campanha épica.
         
-        Tema/Conceito da Campanha: "${theme}"
+        Tema/Conceito: "${theme}"
         
-        Sua tarefa: Criar uma estrutura de "História" dividida em "Atos".
+        Sua tarefa: Criar o CONCEITO GLOBAL e APENAS O PRIMEIRO ATO da história.
         
         Regras:
-        1. A história deve ter entre 4 a 10 ATOS.
-        2. Comece com desafios menores e aumente a dificuldade progressivamente (monstros mais fortes, riscos maiores).
-        3. Para cada ATO, descreva brevemente o que acontece e sugira 1 CENA inicial (descrição narrativa para os jogadores).
-        4. Retorne APENAS um JSON válido com a seguinte estrutura:
+        1. O Ato 1 deve introduzir a trama e ter pelo menos um desafio inicial.
+        2. Retorne APENAS um JSON válido com a seguinte estrutura:
         {
-            "title": "Título Épico da Campanha",
+            "title": "Título da Campanha",
             "summary": "Resumo geral da trama...",
-            "acts": [
-                {
-                    "title": "Ato 1: O Início",
-                    "description": "Descrição do objetivo deste ato e os monstros/desafios envolvidos.",
-                    "sceneContent": "Texto narrativo imersivo para ler aos jogadores iniciando a cena..."
+            "act": {
+                "title": "Ato 1: O Início",
+                "description": "Descrição do objetivo deste ato.",
+                "sceneContent": "Texto narrativo imersivo inicial...",
+                "suggestedEncounter": {
+                    "name": "Nome do Encontro (ex: Emboscada Goblin)",
+                    "monsters": [
+                        { "name": "Goblin", "count": 2, "stats": "HP: 15, ATK: +3" },
+                        { "name": "Lobo", "count": 1, "stats": "HP: 20, ATK: +4" }
+                    ]
+                },
+                "puzzle": {
+                    "name": "Nome do Puzzle",
+                    "description": "Desafio lógico ou perícia necessária",
+                    "solution": "Como resolver"
                 }
-            ]
+            }
         }
         
-        Seja criativo, dramático e use português claro. Não inclua markdown ou explicações fora do JSON.`;
+        Seja criativo. Não inclua markdown.`;
 
         const mistralRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
             method: 'POST',
@@ -89,20 +97,25 @@ export async function POST(request: Request) {
                 roomId,
                 title: storyData.title,
                 summary: storyData.summary,
-                status: 'draft',
+                status: 'active',
                 acts: {
-                    create: storyData.acts.map((act: any, index: number) => ({
-                        order: index + 1,
-                        title: act.title,
-                        description: act.description,
+                    create: {
+                        order: 1,
+                        title: storyData.act.title,
+                        description: storyData.act.description,
+                        status: 'active',
+                        metadata: {
+                            encounter: storyData.act.suggestedEncounter,
+                            puzzle: storyData.act.puzzle
+                        },
                         scenes: {
                             create: {
                                 order: 1,
-                                content: act.sceneContent,
-                                isActive: false
+                                content: storyData.act.sceneContent,
+                                isActive: true
                             }
                         }
-                    }))
+                    }
                 }
             },
             include: {
