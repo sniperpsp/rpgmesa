@@ -118,6 +118,13 @@ export default function GMPage() {
     const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
     const [newStatus, setNewStatus] = useState({ name: "", duration: 1, effect: "" });
 
+    // Combat States
+    const [showAttackModal, setShowAttackModal] = useState(false);
+    const [attacker, setAttacker] = useState<Participant | null>(null);
+    const [activeEncounterId, setActiveEncounterId] = useState<string | null>(null);
+    const [combatLog, setCombatLog] = useState<any[]>([]);
+    const [attackType, setAttackType] = useState<'melee' | 'ranged'>('melee');
+
     useEffect(() => {
         loadRoom();
     }, [code]);
@@ -230,6 +237,65 @@ export default function GMPage() {
                 body: JSON.stringify(updates),
             });
             if (res.ok) {
+                loadRoom();
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function handleToggleEncounter(encounterId: string, isActive: boolean) {
+        try {
+            const res = await fetch(`/api/encounters/${encounterId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ isActive }),
+            });
+            if (res.ok) {
+                loadRoom();
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function handleEditCharacter(characterRoomId: string, stats: any) {
+        try {
+            const res = await fetch(`/api/character-rooms/${characterRoomId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ stats }),
+            });
+            if (res.ok) {
+                loadRoom();
+                alert("Personagem atualizado!");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Erro ao atualizar personagem");
+        }
+    }
+
+    async function handleAttack(targetId: string) {
+        if (!attacker || !activeEncounterId) return;
+
+        try {
+            const res = await fetch('/api/combat/attack', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    encounterId: activeEncounterId,
+                    attackerId: attacker.id,
+                    targetId,
+                    attackType
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setCombatLog(prev => [data.result, ...prev]);
+                setShowAttackModal(false);
+                setAttacker(null);
                 loadRoom();
             }
         } catch (e) {
@@ -394,12 +460,34 @@ export default function GMPage() {
                                         {cr.roomStats && (
                                             <div className="space-y-2">
                                                 <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-                                                    <p className="text-red-400 text-xs font-semibold mb-1">❤️ HP</p>
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <p className="text-red-400 text-xs font-semibold">❤️ HP</p>
+                                                        <button
+                                                            onClick={() => {
+                                                                const newHp = prompt(`Novo HP (pontos base):`, cr.roomStats!.hp.toString());
+                                                                if (newHp) handleEditCharacter(cr.id, { hp: parseInt(newHp) });
+                                                            }}
+                                                            className="text-xs px-2 py-1 bg-red-500/20 hover:bg-red-500/40 rounded"
+                                                        >
+                                                            ✏️
+                                                        </button>
+                                                    </div>
                                                     <p className="text-xl font-bold">{Math.round(cr.roomStats.hp * HP_MULTIPLIER)}</p>
                                                     <p className="text-xs text-neutral-500">{cr.roomStats.hp} pontos × {HP_MULTIPLIER}</p>
                                                 </div>
                                                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-                                                    <p className="text-blue-400 text-xs font-semibold mb-1">✨ Mana</p>
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <p className="text-blue-400 text-xs font-semibold">✨ Mana</p>
+                                                        <button
+                                                            onClick={() => {
+                                                                const newMana = prompt(`Nova Mana (pontos base):`, cr.roomStats!.mana.toString());
+                                                                if (newMana) handleEditCharacter(cr.id, { mana: parseInt(newMana) });
+                                                            }}
+                                                            className="text-xs px-2 py-1 bg-blue-500/20 hover:bg-blue-500/40 rounded"
+                                                        >
+                                                            ✏️
+                                                        </button>
+                                                    </div>
                                                     <p className="text-xl font-bold">{Math.round(cr.roomStats.mana * MANA_MULTIPLIER)}</p>
                                                     <p className="text-xs text-neutral-500">{cr.roomStats.mana} pontos × {MANA_MULTIPLIER}</p>
                                                 </div>
@@ -438,9 +526,12 @@ export default function GMPage() {
                                             <h3 className="text-2xl font-bold">{encounter.name}</h3>
                                             <p className="text-sm text-neutral-500">{encounter.participants.length} participantes</p>
                                         </div>
-                                        <span className={`px-4 py-2 rounded-xl font-semibold ${encounter.isActive ? 'bg-green-500/20 text-green-400' : 'bg-neutral-700/50 text-neutral-400'}`}>
-                                            {encounter.isActive ? '⚔️ Ativo' : 'Inativo'}
-                                        </span>
+                                        <button
+                                            onClick={() => handleToggleEncounter(encounter.id, !encounter.isActive)}
+                                            className={`px-4 py-2 rounded-xl font-semibold transition-all ${encounter.isActive ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-neutral-700/50 text-neutral-400 hover:bg-neutral-600/50'}`}
+                                        >
+                                            {encounter.isActive ? '⚔️ Ativo' : '▶️ Ativar'}
+                                        </button>
                                     </div>
 
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -451,15 +542,28 @@ export default function GMPage() {
                                                         <h4 className="font-bold text-lg">{p.name}</h4>
                                                         <p className="text-xs text-neutral-500">{p.isNPC ? '👹 NPC' : '🎮 Jogador'}</p>
                                                     </div>
-                                                    <button
-                                                        onClick={() => {
-                                                            setSelectedParticipant(p);
-                                                            setShowStatusModal(true);
-                                                        }}
-                                                        className="text-xs px-2 py-1 bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 rounded-lg"
-                                                    >
-                                                        + Status
-                                                    </button>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                setAttacker(p);
+                                                                setActiveEncounterId(encounter.id);
+                                                                setShowAttackModal(true);
+                                                            }}
+                                                            className="text-xs px-2 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg"
+                                                            disabled={!encounter.isActive}
+                                                        >
+                                                            ⚔️ Atacar
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedParticipant(p);
+                                                                setShowStatusModal(true);
+                                                            }}
+                                                            className="text-xs px-2 py-1 bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 rounded-lg"
+                                                        >
+                                                            + Status
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 <div className="space-y-2 mb-3">
@@ -725,6 +829,104 @@ export default function GMPage() {
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Attack Modal */}
+            {showAttackModal && attacker && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-2xl w-full shadow-2xl max-h-[80vh] overflow-y-auto">
+                        <h2 className="text-2xl font-bold mb-4">⚔️ {attacker.name} - Selecionar Alvo</h2>
+
+                        <div className="mb-6">
+                            <label className="block text-sm font-semibold text-neutral-300 mb-2">Tipo de Ataque</label>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setAttackType('melee')}
+                                    className={`flex-1 px-4 py-2 rounded-xl font-semibold transition-all ${attackType === 'melee' ? 'bg-red-600' : 'bg-neutral-800 hover:bg-neutral-700'}`}
+                                >
+                                    🗡️ Corpo a Corpo (Força)
+                                </button>
+                                <button
+                                    onClick={() => setAttackType('ranged')}
+                                    className={`flex-1 px-4 py-2 rounded-xl font-semibold transition-all ${attackType === 'ranged' ? 'bg-red-600' : 'bg-neutral-800 hover:bg-neutral-700'}`}
+                                >
+                                    🏹 À Distância (Destreza)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2 mb-6">
+                            <h3 className="font-semibold text-neutral-400 text-sm">Alvos Disponíveis:</h3>
+                            {room?.encounters.find((e: any) => e.id === activeEncounterId)?.participants
+                                .filter((p: any) => p.id !== attacker.id && p.hp > 0)
+                                .map((target: any) => (
+                                    <button
+                                        key={target.id}
+                                        onClick={() => handleAttack(target.id)}
+                                        className={`w-full p-4 rounded-xl text-left transition-all ${target.isNPC
+                                                ? 'bg-red-500/10 border border-red-500/30 hover:bg-red-500/20'
+                                                : 'bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20'
+                                            }`}
+                                    >
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <p className="font-bold">{target.name}</p>
+                                                <p className="text-xs text-neutral-500">{target.isNPC ? '👹 NPC' : '🎮 Jogador'}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm"><span className="text-red-400">❤️</span> {target.hp}/{target.maxHp}</p>
+                                            </div>
+                                        </div>
+                                    </button>
+                                ))}
+                        </div>
+
+                        <button
+                            onClick={() => {
+                                setShowAttackModal(false);
+                                setAttacker(null);
+                            }}
+                            className="w-full px-4 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 font-semibold"
+                        >
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Combat Log */}
+            {combatLog.length > 0 && (
+                <div className="fixed bottom-4 right-4 w-96 max-h-96 overflow-y-auto bg-neutral-900/95 backdrop-blur-xl border border-neutral-800 rounded-2xl p-4 shadow-2xl z-40">
+                    <div className="flex justify-between items-center mb-3">
+                        <h3 className="font-bold">📜 Log de Combate</h3>
+                        <button
+                            onClick={() => setCombatLog([])}
+                            className="text-xs px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded"
+                        >
+                            Limpar
+                        </button>
+                    </div>
+                    <div className="space-y-2">
+                        {combatLog.map((log: any, idx: number) => (
+                            <div key={idx} className={`p-3 rounded-lg text-sm ${log.hit ? 'bg-red-500/10 border border-red-500/30' : 'bg-neutral-800/50'}`}>
+                                <p className="font-semibold">
+                                    {log.attackerName} → {log.targetName}
+                                </p>
+                                <p className="text-xs text-neutral-400">
+                                    🎲 Rolou {log.attackRoll} + {log.attackBonus} = {log.totalAttack} vs Defesa {log.targetDefense}
+                                </p>
+                                {log.hit ? (
+                                    <p className="text-xs text-red-400 font-semibold">
+                                        {log.critical ? '💥 CRÍTICO! ' : '✅ ACERTOU! '}
+                                        Dano: {log.damage} | HP Restante: {log.remainingHp}
+                                    </p>
+                                ) : (
+                                    <p className="text-xs text-neutral-500">❌ ERROU!</p>
+                                )}
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
