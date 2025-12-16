@@ -1,36 +1,112 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RPG Mesa
 
-## Getting Started
+Sistema de gerenciamento de mesas de RPG com IA integrada.
 
-First, run the development server:
+## 🚀 Status da Recriação
+
+### ✅ Concluído
+- [x] Schema do Prisma com todos os models
+- [x] Configuração do Prisma Client
+- [x] Configuração de sessão (Iron Session)
+- [x] Componente LoadingSpinner
+- [x] Estilos globais customizados
+- [x] Página inicial (Home)
+- [x] Dependências instaladas
+
+### 📋 Próximos Passos (em ordem)
+
+1. **APIs de Autenticação**
+   - `/api/auth/login` - Login de usuários
+   - `/api/auth/register` - Registro de usuários
+   - `/api/auth/logout` - Logout
+
+2. **Páginas de Autenticação**
+   - `/login` - Página de login
+   - `/register` - Página de registro
+
+3. **APIs de Personagens**
+   - `/api/characters` - CRUD de personagens
+   - `/api/characters/[id]` - Detalhes/edição
+
+4. **Páginas de Personagens**
+   - `/characters` - Lista de personagens
+   - `/characters/[id]/edit` - Edição
+
+5. **APIs de Salas**
+   - `/api/rooms/create` - Criar sala
+   - `/api/rooms/join` - Entrar em sala
+   - `/api/rooms/mine` - Minhas salas
+   - `/api/rooms/[code]/me` - Dados do jogador na sala
+
+6. **Páginas de Salas**
+   - `/lobby` - Lobby principal
+   - `/room/[code]/gm` - Visão do Mestre
+   - `/room/[code]/player` - Visão do Jogador
+
+7. **Sistema de Templates**
+   - `/api/templates/classes` - Templates de classes
+   - `/api/templates/races` - Templates de raças
+   - `/api/templates/abilities` - Templates de habilidades
+   - `/templates` - Página de gerenciamento
+
+8. **Integração com IA**
+   - `/api/ai/generate-avatar` - Gerar avatar com IA
+   - `/api/ai/ability-suggest` - Sugerir habilidades
+
+## 🔧 Configuração
+
+### 1. Variáveis de Ambiente
+
+Copie o arquivo `env.example` para `.env` e preencha:
+
+```bash
+DATABASE_URL="postgresql://user:password@localhost:5432/rpgmesa"
+MISTRAL_API_KEY="sua_chave_aqui"
+SESSION_SECRET="minimo_32_caracteres_aleatorios"
+IMGUR_CLIENT_ID="opcional"
+```
+
+### 2. Banco de Dados
+
+```bash
+# Criar/atualizar o banco
+npx prisma migrate dev --name init
+
+# Ou apenas aplicar o schema
+npx prisma db push
+```
+
+### 3. Rodar o Projeto
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 📦 Tecnologias
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Next.js 15** - Framework React
+- **Prisma** - ORM para PostgreSQL
+- **Iron Session** - Gerenciamento de sessões
+- **Bcrypt** - Hash de senhas
+- **Tailwind CSS** - Estilização
+- **Mistral AI** - Geração de avatares e sugestões
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🎮 Funcionalidades Principais
 
-## Learn More
+- ✅ Sistema de autenticação completo
+- ✅ Criação de personagens com stats customizáveis
+- ✅ Geração de avatares com IA
+- ✅ Sistema de salas (GM e Jogadores)
+- ✅ Templates reutilizáveis (Classes, Raças, Habilidades)
+- ✅ Auto-criação de templates ao criar personagens
+- ✅ Interface mobile-first para jogadores
+- ✅ Multiplicadores de HP/Mana (estilo Diablo)
+- ✅ Limite de 3 habilidades por jogador
+- ✅ Sistema de encontros e combate
 
-To learn more about Next.js, take a look at the following resources:
+## 📱 Design
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Interface moderna com glassmorphism
+- Gradientes e animações suaves
+- Responsivo (mobile-first)
+- Dark mode por padrão

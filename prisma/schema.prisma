@@ -1,0 +1,312 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String?  @map("display_name")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  characters           Character[]
+  roomsAsGM            Room[]                @relation("GMRooms")
+  roomMemberships      RoomMember[]
+  eventsAsActor        EventsLog[]           @relation("ActorEvents")
+  proposedSuggestions  MonsterSuggestion[]   @relation("ProposedSuggestions")
+  classTemplates       ClassTemplate[]
+  raceTemplates        RaceTemplate[]
+  abilityTemplates     AbilityTemplate[]
+
+  @@map("users")
+}
+
+model Character {
+  id            String   @id @default(uuid()) @db.Uuid
+  ownerUserId   String   @map("owner_user_id") @db.Uuid
+  name          String
+  class         String?
+  race          String?
+  notes         String?
+  avatarUrl     String?  @map("avatar_url")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  owner         User              @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  stats         CharacterStats?
+  abilities     CharacterAbility[]
+  rooms         CharacterRoom[]
+
+  @@index([ownerUserId])
+  @@map("characters")
+}
+
+model CharacterStats {
+  id            String @id @default(uuid()) @db.Uuid
+  characterId   String @unique @map("character_id") @db.Uuid
+  hp            Int    @default(10)
+  mana          Int    @default(5)
+  forca         Int    @default(3)
+  destreza      Int    @default(3)
+  inteligencia  Int    @default(3)
+  defesa        Int    @default(3)
+  velocidade    Int    @default(3)
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@map("character_stats")
+}
+
+model CharacterAbility {
+  id          String  @id @default(uuid()) @db.Uuid
+  characterId String  @map("character_id") @db.Uuid
+  name        String
+  description String?
+  manaCost    Int     @default(0) @map("mana_cost")
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId])
+  @@map("character_abilities")
+}
+
+model Room {
+  id          String   @id @default(uuid()) @db.Uuid
+  gmUserId    String   @map("gm_user_id") @db.Uuid
+  name        String?
+  joinCode    String   @unique @map("join_code")
+  rules       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  gm                User              @relation("GMRooms", fields: [gmUserId], references: [id])
+  members           RoomMember[]
+  characterRooms    CharacterRoom[]
+  events            EventsLog[]
+  encounters        Encounter[]
+  monsterSuggestions MonsterSuggestion[]
+
+  @@index([gmUserId])
+  @@index([joinCode])
+  @@map("rooms")
+}
+
+model RoomMember {
+  roomId    String   @map("room_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  role      String   @default("player")
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, userId])
+  @@map("room_members")
+}
+
+model CharacterRoom {
+  id          String   @id @default(uuid()) @db.Uuid
+  roomId      String   @map("room_id") @db.Uuid
+  characterId String   @map("character_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  room          Room                    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  character     Character               @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  roomStats     CharacterRoomStats?
+  roomAbilities CharacterRoomAbility[]
+
+  @@unique([roomId, characterId])
+  @@index([roomId])
+  @@index([characterId])
+  @@map("character_rooms")
+}
+
+model CharacterRoomStats {
+  id               String @id @default(uuid()) @db.Uuid
+  characterRoomId  String @unique @map("character_room_id") @db.Uuid
+  hp               Int    @default(10)
+  mana             Int    @default(5)
+  forca            Int    @default(3)
+  destreza         Int    @default(3)
+  inteligencia     Int    @default(3)
+  defesa           Int    @default(3)
+  velocidade       Int    @default(3)
+
+  characterRoom CharacterRoom @relation(fields: [characterRoomId], references: [id], onDelete: Cascade)
+
+  @@map("character_room_stats")
+}
+
+model CharacterRoomAbility {
+  id               String  @id @default(uuid()) @db.Uuid
+  characterRoomId  String  @map("character_room_id") @db.Uuid
+  name             String
+  description      String?
+  manaCost         Int     @default(0) @map("mana_cost")
+  rarity           String?
+  school           String?
+  color            String?
+  difficulty2d6    Int?    @map("difficulty_2d6")
+
+  characterRoom CharacterRoom @relation(fields: [characterRoomId], references: [id], onDelete: Cascade)
+
+  @@index([characterRoomId])
+  @@map("character_room_abilities")
+}
+
+model EventsLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  roomId       String   @map("room_id") @db.Uuid
+  actorUserId  String?  @map("actor_user_id") @db.Uuid
+  targetType   String?  @map("target_type")
+  targetId     String?  @map("target_id") @db.Uuid
+  action       String
+  payload      Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  room  Room  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  actor User? @relation("ActorEvents", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([roomId])
+  @@index([actorUserId])
+  @@map("events_log")
+}
+
+model Encounter {
+  id          String   @id @default(uuid()) @db.Uuid
+  roomId      String   @map("room_id") @db.Uuid
+  name        String?
+  description String?
+  isActive    Boolean  @default(false) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  room         Room                    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  participants EncounterParticipant[]
+
+  @@index([roomId])
+  @@map("encounters")
+}
+
+model EncounterParticipant {
+  id          String  @id @default(uuid()) @db.Uuid
+  encounterId String  @map("encounter_id") @db.Uuid
+  name        String
+  hp          Int     @default(10)
+  maxHp       Int     @default(10) @map("max_hp")
+  initiative  Int     @default(0)
+  isNPC       Boolean @default(false) @map("is_npc")
+
+  encounter Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([encounterId])
+  @@map("encounter_participants")
+}
+
+enum SuggestionStatus {
+  pending
+  approved
+  rejected
+}
+
+model MonsterSuggestion {
+  id               String           @id @default(uuid()) @db.Uuid
+  roomId           String           @map("room_id") @db.Uuid
+  proposedByUserId String           @map("proposed_by_user_id") @db.Uuid
+  name             String
+  rarity           String?
+  role             String?
+  tags             String?
+  payload          Json
+  status           SuggestionStatus @default(pending)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  room     Room @relation(fields: [roomId], references: [id])
+  proposer User @relation("ProposedSuggestions", fields: [proposedByUserId], references: [id])
+
+  @@index([roomId])
+  @@index([proposedByUserId])
+  @@map("monster_suggestions")
+}
+
+model ClassTemplate {
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String
+  slug              String   @unique
+  description       String?
+  storyType         String?  @map("story_type")
+  isGlobal          Boolean  @default(false) @map("is_global")
+  ownerUserId       String?  @map("owner_user_id") @db.Uuid
+  baseHp            Int      @default(12) @map("base_hp")
+  baseMana          Int      @default(5) @map("base_mana")
+  baseForca         Int      @default(3) @map("base_forca")
+  baseDestreza      Int      @default(3) @map("base_destreza")
+  baseInteligencia  Int      @default(3) @map("base_inteligencia")
+  baseDefesa        Int      @default(3) @map("base_defesa")
+  baseVelocidade    Int      @default(3) @map("base_velocidade")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  owner User? @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([ownerUserId])
+  @@index([storyType])
+  @@map("class_templates")
+}
+
+model RaceTemplate {
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String
+  slug              String   @unique
+  description       String?
+  storyType         String?  @map("story_type")
+  isGlobal          Boolean  @default(false) @map("is_global")
+  ownerUserId       String?  @map("owner_user_id") @db.Uuid
+  modHp             Int      @default(0) @map("mod_hp")
+  modMana           Int      @default(0) @map("mod_mana")
+  modForca          Int      @default(0) @map("mod_forca")
+  modDestreza       Int      @default(0) @map("mod_destreza")
+  modInteligencia   Int      @default(0) @map("mod_inteligencia")
+  modDefesa         Int      @default(0) @map("mod_defesa")
+  modVelocidade     Int      @default(0) @map("mod_velocidade")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  owner User? @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([ownerUserId])
+  @@index([storyType])
+  @@map("race_templates")
+}
+
+model AbilityTemplate {
+  id               String   @id @default(uuid()) @db.Uuid
+  name             String
+  slug             String   @unique
+  description      String?
+  storyType        String?  @map("story_type")
+  isGlobal         Boolean  @default(false) @map("is_global")
+  ownerUserId      String?  @map("owner_user_id") @db.Uuid
+  manaCost         Int      @default(0) @map("mana_cost")
+  rarity           String?
+  school           String?
+  classRestriction String?  @map("class_restriction")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  owner User? @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([ownerUserId])
+  @@index([storyType])
+  @@map("ability_templates")
+}
