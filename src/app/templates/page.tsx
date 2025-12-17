@@ -343,13 +343,53 @@ export default function TemplatesPage() {
                     />
                 </div>
                 <div>
-                    <label className="block text-sm text-neutral-400 mb-2">Descrição</label>
+                    <div className="flex justify-between items-center mb-2">
+                        <label className="block text-sm text-neutral-400">Descrição</label>
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                if (!formData.name) {
+                                    alert('Digite um nome primeiro!');
+                                    return;
+                                }
+
+                                setProcessing(true);
+                                try {
+                                    const res = await fetch('/api/ai/generate-description', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            type: activeTab.slice(0, -1), // Remove 's' do final
+                                            name: formData.name,
+                                            context: formData
+                                        })
+                                    });
+
+                                    if (res.ok) {
+                                        const data = await res.json();
+                                        setFormData({ ...formData, description: data.description });
+                                    } else {
+                                        alert('Erro ao gerar descrição');
+                                    }
+                                } catch (e) {
+                                    console.error(e);
+                                    alert('Erro ao gerar descrição');
+                                } finally {
+                                    setProcessing(false);
+                                }
+                            }}
+                            disabled={processing || !formData.name}
+                            className="px-3 py-1 text-xs rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {processing ? '⏳ Gerando...' : '✨ Gerar com IA'}
+                        </button>
+                    </div>
                     <textarea
                         value={formData.description || ''}
                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                         className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-blue-500/50"
-                        rows={3}
-                        placeholder="Descrição do template"
+                        rows={5}
+                        placeholder="Descrição do template (deixe vazio para gerar automaticamente com IA)"
                     />
                 </div>
 

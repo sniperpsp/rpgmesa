@@ -414,6 +414,7 @@ export default function GMPage() {
                         <button onClick={() => setActiveTab('characters')} className={`px-4 py-2 rounded-xl transition-all whitespace-nowrap ${activeTab === 'characters' ? 'bg-purple-600' : 'bg-neutral-800/50'}`}>Personagens</button>
                         <button onClick={() => setActiveTab('encounters')} className={`px-4 py-2 rounded-xl transition-all whitespace-nowrap ${activeTab === 'encounters' ? 'bg-purple-600' : 'bg-neutral-800/50'}`}>Encontros</button>
                         <button onClick={() => setActiveTab('stories')} className={`px-4 py-2 rounded-xl transition-all whitespace-nowrap ${activeTab === 'stories' ? 'bg-purple-600' : 'bg-neutral-800/50'}`}>História (IA)</button>
+                        <button onClick={() => router.push('/templates')} className="px-4 py-2 rounded-xl transition-all whitespace-nowrap bg-neutral-800/50 hover:bg-neutral-700/50">📚 Templates</button>
                     </div>
                 </div>
             </header>
