@@ -37,6 +37,7 @@ interface Room {
             name: string;
             description: string | null;
             manaCost: number;
+            abilityType?: string;
         }>;
     }>;
     characterRooms: Array<{
@@ -86,6 +87,11 @@ export default function PlayerPage() {
     const [diceRolled, setDiceRolled] = useState(false);
     const [attackRoll, setAttackRoll] = useState<number | null>(null);
     const [attackResult, setAttackResult] = useState<any>(null);
+
+    // Ability states
+    const [showAbilityModal, setShowAbilityModal] = useState(false);
+    const [selectedAbility, setSelectedAbility] = useState<any>(null);
+    const [abilityTarget, setAbilityTarget] = useState<any>(null);
 
     useEffect(() => {
         loadRoom();
@@ -434,22 +440,74 @@ export default function PlayerPage() {
                                     <p className="text-neutral-500 text-center py-8">Nenhuma habilidade ainda.</p>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        {currentCharacter.roomAbilities.map((ability) => (
-                                            <div
-                                                key={ability.id}
-                                                className="bg-neutral-800/50 border border-neutral-700/50 rounded-xl p-4 hover:border-emerald-500/50 transition-all cursor-pointer"
-                                            >
-                                                <div className="flex items-start justify-between mb-2">
-                                                    <h4 className="font-bold">{ability.name}</h4>
-                                                    <span className="px-2 py-1 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-semibold">
-                                                        {ability.manaCost} mana
-                                                    </span>
+                                        {currentCharacter.roomAbilities.map((ability) => {
+                                            const currentMana = currentCharacter.roomStats?.mana || 0;
+                                            const canUse = currentMana >= ability.manaCost;
+
+                                            // Determinar cor do tipo de habilidade
+                                            const getAbilityColor = () => {
+                                                switch (ability.abilityType) {
+                                                    case 'attack': return 'red';
+                                                    case 'heal': return 'green';
+                                                    case 'buff': return 'blue';
+                                                    case 'debuff': return 'purple';
+                                                    case 'protection': return 'yellow';
+                                                    default: return 'gray';
+                                                }
+                                            };
+
+                                            const color = getAbilityColor();
+
+                                            return (
+                                                <div
+                                                    key={ability.id}
+                                                    className={`bg-neutral-800/50 border rounded-xl p-4 transition-all ${canUse ? `border-${color}-500/30 hover:border-${color}-500/50` : 'border-neutral-700/50 opacity-60'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-start justify-between mb-2">
+                                                        <div className="flex-1">
+                                                            <h4 className="font-bold">{ability.name}</h4>
+                                                            {ability.abilityType && (
+                                                                <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-semibold bg-${color}-500/20 text-${color}-400`}>
+                                                                    {ability.abilityType === 'attack' && '⚔️ Ataque'}
+                                                                    {ability.abilityType === 'heal' && '💚 Cura'}
+                                                                    {ability.abilityType === 'buff' && '⬆️ Buff'}
+                                                                    {ability.abilityType === 'debuff' && '⬇️ Debuff'}
+                                                                    {ability.abilityType === 'protection' && '🛡️ Proteção'}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span className="px-2 py-1 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-semibold whitespace-nowrap ml-2">
+                                                            {ability.manaCost} mana
+                                                        </span>
+                                                    </div>
+                                                    {ability.description && (
+                                                        <p className="text-neutral-400 text-sm mb-3">{ability.description}</p>
+                                                    )}
+
+                                                    {/* Botão Usar - só aparece em combate */}
+                                                    {isMyTurn && (
+                                                        <button
+                                                            onClick={() => {
+                                                                if (!canUse) {
+                                                                    alert('Mana insuficiente!');
+                                                                    return;
+                                                                }
+                                                                setSelectedAbility(ability);
+                                                                setShowAbilityModal(true);
+                                                            }}
+                                                            disabled={!canUse}
+                                                            className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all ${canUse
+                                                                ? `bg-${color}-600 hover:bg-${color}-500 text-white`
+                                                                : 'bg-neutral-700/50 text-neutral-500 cursor-not-allowed'
+                                                                }`}
+                                                        >
+                                                            {canUse ? '✨ Usar Habilidade' : '🚫 Mana Insuficiente'}
+                                                        </button>
+                                                    )}
                                                 </div>
-                                                {ability.description && (
-                                                    <p className="text-neutral-400 text-sm">{ability.description}</p>
-                                                )}
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
@@ -568,8 +626,8 @@ export default function PlayerPage() {
                                         <button
                                             onClick={() => setAttackType('melee')}
                                             className={`p-3 rounded-xl border-2 transition-all ${attackType === 'melee'
-                                                    ? 'border-red-500 bg-red-500/20'
-                                                    : 'border-neutral-700 bg-neutral-800/50 hover:border-neutral-600'
+                                                ? 'border-red-500 bg-red-500/20'
+                                                : 'border-neutral-700 bg-neutral-800/50 hover:border-neutral-600'
                                                 }`}
                                         >
                                             <div className="text-2xl mb-1">🗡️</div>
@@ -579,8 +637,8 @@ export default function PlayerPage() {
                                         <button
                                             onClick={() => setAttackType('ranged')}
                                             className={`p-3 rounded-xl border-2 transition-all ${attackType === 'ranged'
-                                                    ? 'border-blue-500 bg-blue-500/20'
-                                                    : 'border-neutral-700 bg-neutral-800/50 hover:border-neutral-600'
+                                                ? 'border-blue-500 bg-blue-500/20'
+                                                : 'border-neutral-700 bg-neutral-800/50 hover:border-neutral-600'
                                                 }`}
                                         >
                                             <div className="text-2xl mb-1">🏹</div>
@@ -604,8 +662,8 @@ export default function PlayerPage() {
                             {/* Resultado da rolagem */}
                             {diceRolled && attackResult && (
                                 <div className={`mb-6 p-6 rounded-xl border-2 ${attackResult.isCritical ? 'bg-yellow-500/20 border-yellow-500' :
-                                        attackResult.hit ? 'bg-green-500/20 border-green-500' :
-                                            'bg-red-500/20 border-red-500'
+                                    attackResult.hit ? 'bg-green-500/20 border-green-500' :
+                                        'bg-red-500/20 border-red-500'
                                     }`}>
                                     <div className="text-center mb-4">
                                         <div className="text-6xl mb-2">
@@ -675,6 +733,133 @@ export default function PlayerPage() {
                                     setDiceRolled(false);
                                     setAttackRoll(null);
                                     setAttackResult(null);
+                                }}
+                                className="w-full mt-3 px-4 py-2 rounded-xl bg-neutral-800/50 hover:bg-neutral-700/50 transition-all"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Ability Modal - Escolher alvo e usar habilidade */}
+            {showAbilityModal && selectedAbility && (() => {
+                const currentChar = room.userCharacters[selectedCharacter];
+                const activeEncounter = room?.encounters?.find(e => e.isActive);
+
+                if (!activeEncounter) return null;
+
+                const myParticipant = activeEncounter.participants.find(
+                    p => p.name === currentChar.character.name && !p.isNPC
+                );
+
+                // Determinar alvos possíveis baseado no tipo
+                const isTargetingEnemies = selectedAbility.abilityType === 'attack' || selectedAbility.abilityType === 'debuff';
+                const isTargetingAllies = selectedAbility.abilityType === 'heal' || selectedAbility.abilityType === 'buff' || selectedAbility.abilityType === 'protection';
+
+                const enemies = activeEncounter.participants.filter(p => p.isNPC);
+                const allies = activeEncounter.participants.filter(p => !p.isNPC);
+
+                const possibleTargets = isTargetingEnemies ? enemies : isTargetingAllies ? allies : [...allies, ...enemies];
+
+                return (
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-md w-full">
+                            <h2 className="text-2xl font-bold mb-6">Usar: {selectedAbility.name}</h2>
+
+                            {/* Info da habilidade */}
+                            <div className="mb-6 p-4 bg-purple-950/30 border border-purple-500/30 rounded-xl">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-sm text-neutral-400">Custo:</span>
+                                    <span className="font-bold text-blue-400">{selectedAbility.manaCost} Mana</span>
+                                </div>
+                                {selectedAbility.description && (
+                                    <p className="text-sm text-neutral-300 mt-2">{selectedAbility.description}</p>
+                                )}
+                            </div>
+
+                            {/* Seleção de alvo */}
+                            <div className="mb-6">
+                                <h3 className="text-sm font-semibold mb-3">
+                                    {isTargetingEnemies && '🎯 Escolha um inimigo:'}
+                                    {isTargetingAllies && '💚 Escolha um aliado:'}
+                                    {!isTargetingEnemies && !isTargetingAllies && '🎯 Escolha um alvo:'}
+                                </h3>
+                                <div className="space-y-2 max-h-60 overflow-y-auto">
+                                    {possibleTargets.map(target => (
+                                        <button
+                                            key={target.id}
+                                            onClick={() => setAbilityTarget(target)}
+                                            className={`w-full p-3 rounded-xl border-2 transition-all text-left ${abilityTarget?.id === target.id
+                                                    ? 'border-purple-500 bg-purple-500/20'
+                                                    : 'border-neutral-700 bg-neutral-800/50 hover:border-neutral-600'
+                                                }`}
+                                        >
+                                            <div className="flex justify-between items-center">
+                                                <div>
+                                                    <p className="font-bold">{target.name}</p>
+                                                    <p className="text-xs text-neutral-500">
+                                                        HP: {target.hp}/{target.maxHp}
+                                                    </p>
+                                                </div>
+                                                {target.isNPC && <span className="text-red-400">👹</span>}
+                                                {!target.isNPC && <span className="text-green-400">⚔️</span>}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Botões */}
+                            <button
+                                onClick={async () => {
+                                    if (!abilityTarget) {
+                                        alert('Escolha um alvo!');
+                                        return;
+                                    }
+
+                                    if (!activeEncounter || !myParticipant) return;
+
+                                    try {
+                                        const res = await fetch('/api/combat/use-ability', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                encounterId: activeEncounter.id,
+                                                userId: myParticipant.id,
+                                                abilityId: selectedAbility.id,
+                                                targetId: abilityTarget.id
+                                            })
+                                        });
+
+                                        if (res.ok) {
+                                            const data = await res.json();
+                                            alert(data.message || 'Habilidade usada com sucesso!');
+                                            setShowAbilityModal(false);
+                                            setSelectedAbility(null);
+                                            setAbilityTarget(null);
+                                            loadRoom();
+                                        } else {
+                                            const error = await res.json();
+                                            alert(error.error || 'Erro ao usar habilidade');
+                                        }
+                                    } catch (e) {
+                                        console.error(e);
+                                        alert('Erro ao usar habilidade');
+                                    }
+                                }}
+                                disabled={!abilityTarget}
+                                className="w-full px-6 py-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                ✨ USAR HABILIDADE
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    setShowAbilityModal(false);
+                                    setSelectedAbility(null);
+                                    setAbilityTarget(null);
                                 }}
                                 className="w-full mt-3 px-4 py-2 rounded-xl bg-neutral-800/50 hover:bg-neutral-700/50 transition-all"
                             >
