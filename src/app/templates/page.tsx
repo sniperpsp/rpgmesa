@@ -27,6 +27,9 @@ export default function TemplatesPage() {
     const [selectedStoryType, setSelectedStoryType] = useState<string>('todos');
 
     const [formData, setFormData] = useState<any>({});
+    const [counts, setCounts] = useState({
+        classes: 0, races: 0, abilities: 0, weapons: 0, items: 0, monsters: 0
+    });
 
     // Derivar storyTypes únicos dos templates
     const storyTypes = Array.from(new Set(templates.map(t => t.storyType).filter(Boolean)));
@@ -51,6 +54,7 @@ export default function TemplatesPage() {
     useEffect(() => {
         if (!userLoading) {
             loadTemplates();
+            loadCounts();
         }
     }, [activeTab, userLoading]);
 
@@ -65,6 +69,18 @@ export default function TemplatesPage() {
             console.error("Erro ao verificar usuário", e);
         } finally {
             setUserLoading(false);
+        }
+    }
+
+    async function loadCounts() {
+        try {
+            const res = await fetch('/api/templates/stats');
+            if (res.ok) {
+                const data = await res.json();
+                setCounts(data);
+            }
+        } catch (e) {
+            console.error("Erro ao carregar contagens:", e);
         }
     }
 
@@ -108,7 +124,11 @@ export default function TemplatesPage() {
             case 'abilities':
                 return { ...base, manaCost: 0, rarity: 'comum', school: '' };
             case 'weapons':
-                return { ...base, damage: 5, damageType: 'físico', range: 'corpo-a-corpo' };
+                return {
+                    ...base,
+                    damage: 5, damageType: 'físico', range: 'corpo-a-corpo',
+                    modHp: 0, modMana: 0, modForca: 2, modDestreza: 0, modInteligencia: 0, modDefesa: 0, modVelocidade: 0
+                };
             case 'items':
                 return { ...base, itemType: 'consumível', effect: '' };
             case 'monsters':
@@ -140,6 +160,7 @@ export default function TemplatesPage() {
             if (res.ok) {
                 setShowModal(false);
                 loadTemplates();
+                loadCounts();
             } else {
                 const error = await res.json();
                 alert(error.error || 'Erro ao salvar template');
@@ -165,6 +186,7 @@ export default function TemplatesPage() {
 
             if (res.ok) {
                 loadTemplates();
+                loadCounts();
             } else {
                 const error = await res.json();
                 alert(error.error || 'Erro ao deletar template');
@@ -295,8 +317,12 @@ export default function TemplatesPage() {
                             <p className="font-bold">{template.damage}</p>
                         </div>
                         <div className="bg-neutral-800/50 rounded-lg p-2">
-                            <p className="text-neutral-500">Tipo</p>
-                            <p className="font-bold capitalize">{template.damageType}</p>
+                            <p className="text-neutral-500">Mods</p>
+                            <div className="flex flex-wrap gap-1">
+                                {template.modForca > 0 && <span className="bg-red-500/20 text-red-300 px-1 rounded">+{template.modForca} FOR</span>}
+                                {template.modDestreza > 0 && <span className="bg-green-500/20 text-green-300 px-1 rounded">+{template.modDestreza} DES</span>}
+                                {template.modInteligencia > 0 && <span className="bg-blue-500/20 text-blue-300 px-1 rounded">+{template.modInteligencia} INT</span>}
+                            </div>
                         </div>
                     </div>
                 );
@@ -503,29 +529,43 @@ export default function TemplatesPage() {
                 )}
 
                 {activeTab === 'weapons' && (
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-sm text-neutral-400 mb-2">Dano</label>
-                            <input type="number" value={formData.damage || 0} onChange={(e) => setFormData({ ...formData, damage: parseInt(e.target.value) })} className="w-full px-4 py-2 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-blue-500/50" />
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-sm text-neutral-400 mb-2">Dano</label>
+                                <input type="number" value={formData.damage || 0} onChange={(e) => setFormData({ ...formData, damage: parseInt(e.target.value) })} className="w-full px-4 py-2 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-blue-500/50" />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-neutral-400 mb-2">Tipo de Dano</label>
+                                <select value={formData.damageType || 'físico'} onChange={(e) => setFormData({ ...formData, damageType: e.target.value })} className="w-full px-4 py-2 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-blue-500/50">
+                                    <option value="físico">Físico</option>
+                                    <option value="mágico">Mágico</option>
+                                    <option value="fogo">Fogo</option>
+                                    <option value="gelo">Gelo</option>
+                                    <option value="raio">Raio</option>
+                                </select>
+                            </div>
+                            <div className="col-span-2">
+                                <label className="block text-sm text-neutral-400 mb-2">Alcance</label>
+                                <select value={formData.range || 'corpo-a-corpo'} onChange={(e) => setFormData({ ...formData, range: e.target.value })} className="w-full px-4 py-2 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-blue-500/50">
+                                    <option value="corpo-a-corpo">Corpo-a-corpo</option>
+                                    <option value="curto">Curto (5m)</option>
+                                    <option value="médio">Médio (15m)</option>
+                                    <option value="longo">Longo (30m+)</option>
+                                </select>
+                            </div>
                         </div>
-                        <div>
-                            <label className="block text-sm text-neutral-400 mb-2">Tipo de Dano</label>
-                            <select value={formData.damageType || 'físico'} onChange={(e) => setFormData({ ...formData, damageType: e.target.value })} className="w-full px-4 py-2 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-blue-500/50">
-                                <option value="físico">Físico</option>
-                                <option value="mágico">Mágico</option>
-                                <option value="fogo">Fogo</option>
-                                <option value="gelo">Gelo</option>
-                                <option value="raio">Raio</option>
-                            </select>
-                        </div>
-                        <div className="col-span-2">
-                            <label className="block text-sm text-neutral-400 mb-2">Alcance</label>
-                            <select value={formData.range || 'corpo-a-corpo'} onChange={(e) => setFormData({ ...formData, range: e.target.value })} className="w-full px-4 py-2 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-blue-500/50">
-                                <option value="corpo-a-corpo">Corpo-a-corpo</option>
-                                <option value="curto">Curto (5m)</option>
-                                <option value="médio">Médio (15m)</option>
-                                <option value="longo">Longo (30m+)</option>
-                            </select>
+                        <div className="bg-neutral-800/30 p-4 rounded-xl">
+                            <h4 className="text-sm font-bold text-neutral-300 mb-3">Modificadores de Atributos</h4>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div><label className="text-xs text-neutral-500">Mod. HP</label><input type="number" value={formData.modHp || 0} onChange={(e) => setFormData({ ...formData, modHp: parseInt(e.target.value) })} className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm" /></div>
+                                <div><label className="text-xs text-neutral-500">Mod. Mana</label><input type="number" value={formData.modMana || 0} onChange={(e) => setFormData({ ...formData, modMana: parseInt(e.target.value) })} className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm" /></div>
+                                <div><label className="text-xs text-neutral-500">Mod. Força</label><input type="number" value={formData.modForca || 0} onChange={(e) => setFormData({ ...formData, modForca: parseInt(e.target.value) })} className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm" /></div>
+                                <div><label className="text-xs text-neutral-500">Mod. Destreza</label><input type="number" value={formData.modDestreza || 0} onChange={(e) => setFormData({ ...formData, modDestreza: parseInt(e.target.value) })} className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm" /></div>
+                                <div><label className="text-xs text-neutral-500">Mod. Inteligência</label><input type="number" value={formData.modInteligencia || 0} onChange={(e) => setFormData({ ...formData, modInteligencia: parseInt(e.target.value) })} className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm" /></div>
+                                <div><label className="text-xs text-neutral-500">Mod. Defesa</label><input type="number" value={formData.modDefesa || 0} onChange={(e) => setFormData({ ...formData, modDefesa: parseInt(e.target.value) })} className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm" /></div>
+                                <div><label className="text-xs text-neutral-500">Mod. Velocidade</label><input type="number" value={formData.modVelocidade || 0} onChange={(e) => setFormData({ ...formData, modVelocidade: parseInt(e.target.value) })} className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-sm" /></div>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -648,7 +688,7 @@ export default function TemplatesPage() {
                                     : 'bg-neutral-800/50 text-neutral-400 hover:bg-neutral-700/50'
                                     }`}
                             >
-                                {cfg.icon} {cfg.label} ({templates.length})
+                                {cfg.icon} {cfg.label} ({counts[key as TemplateType] || 0})
                             </button>
                         ))}
                     </div>

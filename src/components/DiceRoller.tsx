@@ -19,6 +19,7 @@ export function DiceRoller({ onRoll, className = "", allowedDice }: DiceRollerPr
     const [rolling, setRolling] = useState(false);
     const [lastResult, setLastResult] = useState<DiceRollResult | null>(null);
     const [modifier, setModifier] = useState<number>(0);
+    const [diceCount, setDiceCount] = useState<number>(1);
 
     const allDiceOptions = [
         { label: "d4", value: "1d4", sides: 4 },
@@ -71,7 +72,11 @@ export function DiceRoller({ onRoll, className = "", allowedDice }: DiceRollerPr
         // Animação de rolagem
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        const result = rollDice(selectedDice, modifier);
+        // Construct dice string based on count and selected sides (extract sides from "1dX")
+        const sides = selectedDice.split('d')[1];
+        const finalDiceStr = `${diceCount}d${sides}`;
+
+        const result = rollDice(finalDiceStr, modifier);
         setLastResult(result);
         setRolling(false);
 
@@ -100,28 +105,59 @@ export function DiceRoller({ onRoll, className = "", allowedDice }: DiceRollerPr
                 ))}
             </div>
 
-            {/* Modifier */}
-            <div className="mb-4">
-                <label className="block text-sm text-neutral-400 mb-2">Modificador</label>
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setModifier(Math.max(-10, modifier - 1))}
-                        className="px-4 py-2 rounded-xl bg-neutral-800/50 hover:bg-neutral-700/50 transition-all"
-                    >
-                        -
-                    </button>
-                    <input
-                        type="number"
-                        value={modifier}
-                        onChange={(e) => setModifier(parseInt(e.target.value) || 0)}
-                        className="flex-1 px-4 py-2 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-center text-neutral-100 focus:outline-none focus:border-emerald-500/50"
-                    />
-                    <button
-                        onClick={() => setModifier(Math.min(10, modifier + 1))}
-                        className="px-4 py-2 rounded-xl bg-neutral-800/50 hover:bg-neutral-700/50 transition-all"
-                    >
-                        +
-                    </button>
+            {/* Controls */}
+            <div className="space-y-4 mb-6">
+                {/* Quantity */}
+                <div className="bg-neutral-800/30 p-3 rounded-xl border border-neutral-700/30">
+                    <label className="block text-xs uppercase font-bold text-neutral-500 mb-2">Quantidade de Dados</label>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setDiceCount(Math.max(1, diceCount - 1))}
+                            className="w-10 h-10 flex items-center justify-center rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-neutral-600 transition-all text-xl font-bold"
+                        >
+                            -
+                        </button>
+                        <input
+                            type="number"
+                            value={diceCount}
+                            onChange={(e) => setDiceCount(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="flex-1 h-10 bg-neutral-900 border border-neutral-700 rounded-xl text-center text-xl font-bold text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                        />
+                        <button
+                            onClick={() => setDiceCount(diceCount + 1)}
+                            className="w-10 h-10 flex items-center justify-center rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-neutral-600 transition-all text-xl font-bold"
+                        >
+                            +
+                        </button>
+                    </div>
+                </div>
+
+                {/* Modifier */}
+                <div className="bg-neutral-800/30 p-3 rounded-xl border border-neutral-700/30">
+                    <div className="flex justify-between items-center mb-2">
+                        <label className="block text-xs uppercase font-bold text-neutral-500">Modificador (Bônus)</label>
+                        <span className="text-[10px] text-neutral-600">Somado ao total</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setModifier(modifier - 1)}
+                            className="w-10 h-10 flex items-center justify-center rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-neutral-600 transition-all text-xl font-bold"
+                        >
+                            -
+                        </button>
+                        <input
+                            type="number"
+                            value={modifier}
+                            onChange={(e) => setModifier(parseInt(e.target.value) || 0)}
+                            className="flex-1 h-10 bg-neutral-900 border border-neutral-700 rounded-xl text-center text-xl font-bold text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                        />
+                        <button
+                            onClick={() => setModifier(modifier + 1)}
+                            className="w-10 h-10 flex items-center justify-center rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-neutral-600 transition-all text-xl font-bold"
+                        >
+                            +
+                        </button>
+                    </div>
                 </div>
             </div>
 

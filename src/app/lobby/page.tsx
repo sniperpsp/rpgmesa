@@ -26,6 +26,7 @@ export default function LobbyPage() {
     const [loading, setLoading] = useState(true);
     const [user, setUser] = useState<any>(null);
     const [myRooms, setMyRooms] = useState<Room[]>([]);
+    const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
     const [showCreateRoom, setShowCreateRoom] = useState(false);
     const [showJoinRoom, setShowJoinRoom] = useState(false);
     const [roomName, setRoomName] = useState("");
@@ -61,6 +62,13 @@ export default function LobbyPage() {
             if (roomsRes.ok) {
                 const roomsData = await roomsRes.json();
                 setMyRooms(roomsData.rooms);
+            }
+
+            // Carregar salas disponíveis
+            const availableRes = await fetch("/api/rooms/available");
+            if (availableRes.ok) {
+                const availableData = await availableRes.json();
+                setAvailableRooms(availableData.rooms);
             }
 
             setLoading(false);
@@ -114,6 +122,7 @@ export default function LobbyPage() {
                 if (res.ok) {
                     const data = await res.json();
                     setShowCreateRoom(false);
+                    loadData(); // Recarregar todas as salas
                     router.push(`/room/${data.room.joinCode}/gm`);
                 } else {
                     alert("Erro ao criar sala");
@@ -132,6 +141,7 @@ export default function LobbyPage() {
                     const data = await res.json();
                     setMyRooms(prev => prev.map(r => r.id === editingRoom.id ? { ...r, ...data.room } : r));
                     setShowCreateRoom(false);
+                    loadData(); // Recarregar salas disponíveis
                 } else {
                     alert("Erro ao editar sala");
                 }
@@ -183,6 +193,30 @@ export default function LobbyPage() {
                 setShowJoinRoom(false);
                 setJoinCode("");
                 // Redirecionar para a sala
+                router.push(`/room/${data.room.joinCode}/player`);
+            } else {
+                const error = await res.json();
+                alert(error.error || "Erro ao entrar na sala");
+            }
+        } catch (e) {
+            console.error("Erro ao entrar na sala:", e);
+            alert("Erro ao entrar na sala");
+        } finally {
+            setJoining(false);
+        }
+    }
+
+    async function handleQuickJoin(roomCode: string) {
+        setJoining(true);
+        try {
+            const res = await fetch("/api/rooms/join", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ joinCode: roomCode }),
+            });
+
+            if (res.ok) {
+                const data = await res.json();
                 router.push(`/room/${data.room.joinCode}/player`);
             } else {
                 const error = await res.json();
@@ -375,6 +409,54 @@ export default function LobbyPage() {
                         </div>
                     )}
                 </div>
+
+                {/* Salas Disponíveis */}
+                {availableRooms.length > 0 && (
+                    <div className="bg-neutral-900/50 backdrop-blur-xl border border-neutral-800/50 rounded-3xl p-6 mt-8">
+                        <h2 className="text-2xl font-bold mb-6">Salas Disponíveis</h2>
+                        <p className="text-neutral-400 text-sm mb-4">
+                            Clique em "Entrar" para participar de uma sala existente
+                        </p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {availableRooms.map((room) => (
+                                <div
+                                    key={room.id}
+                                    className="bg-neutral-800/50 border border-neutral-700/50 rounded-2xl p-5 hover:border-amber-500/50 transition-all"
+                                >
+                                    <div className="flex items-start justify-between mb-3">
+                                        <div>
+                                            <h3 className="font-bold text-lg mb-1">{room.name || "Sala sem nome"}</h3>
+                                            <p className="text-neutral-500 text-xs">Código: {room.joinCode} {room.diceSystem && `(${room.diceSystem})`}</p>
+                                        </div>
+                                        <span className="px-2 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-400">
+                                            Nova
+                                        </span>
+                                    </div>
+
+                                    {room.gm && (
+                                        <p className="text-neutral-400 text-sm mb-3">
+                                            Mestre: {room.gm.displayName || room.gm.email}
+                                        </p>
+                                    )}
+
+                                    <div className="flex gap-4 text-xs text-neutral-500 mb-4">
+                                        <span>👥 {room._count?.members || 0} membros</span>
+                                        <span>⚔️ {room._count?.characterRooms || 0} personagens</span>
+                                    </div>
+
+                                    <button
+                                        onClick={() => handleQuickJoin(room.joinCode)}
+                                        className="w-full px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-center transition-all font-semibold disabled:opacity-50"
+                                        disabled={joining}
+                                    >
+                                        {joining ? "Entrando..." : "Entrar"}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </main>
 
             {/* Create/Edit Room Modal */}

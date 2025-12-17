@@ -40,6 +40,7 @@ model Character {
   name          String
   class         String?
   race          String?
+  weapon        String?
   notes         String?
   avatarUrl     String?  @map("avatar_url")
   createdAt     DateTime @default(now()) @map("created_at")
@@ -76,6 +77,7 @@ model CharacterAbility {
   name        String
   description String?
   manaCost    Int     @default(0) @map("mana_cost")
+  abilityType String? @map("ability_type")
 
   character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
 
@@ -141,8 +143,6 @@ model CharacterRoomStats {
   characterRoomId  String @unique @map("character_room_id") @db.Uuid
   hp               Int    @default(10)
   mana             Int    @default(5)
-  hpMultiplier     Float  @default(2.5) @map("hp_multiplier")
-  manaMultiplier   Float  @default(2.5) @map("mana_multiplier")
   forca            Int    @default(3)
   destreza         Int    @default(3)
   inteligencia     Int    @default(3)
@@ -164,6 +164,7 @@ model CharacterRoomAbility {
   school           String?
   color            String?
   difficulty2d6    Int?    @map("difficulty_2d6")
+  abilityType      String? @map("ability_type")
 
   characterRoom CharacterRoom @relation(fields: [characterRoomId], references: [id], onDelete: Cascade)
 
@@ -332,6 +333,15 @@ model WeaponTemplate {
   damage      Int      @default(5)
   damageType  String   @default("físico") @map("damage_type")
   range       String   @default("corpo-a-corpo")
+  
+  // Modificadores de Status
+  modHp             Int      @default(0) @map("mod_hp")
+  modMana           Int      @default(0) @map("mod_mana")
+  modForca          Int      @default(0) @map("mod_forca")
+  modDestreza       Int      @default(0) @map("mod_destreza")
+  modInteligencia   Int      @default(0) @map("mod_inteligencia")
+  modDefesa         Int      @default(0) @map("mod_defesa")
+  modVelocidade     Int      @default(0) @map("mod_velocidade")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -367,8 +377,17 @@ model MonsterTemplate {
   isGlobal    Boolean  @default(false) @map("is_global")
   ownerUserId String?  @map("owner_user_id") @db.Uuid
   hp          Int      @default(50)
-  attack      Int      @default(10)
-  defense     Int      @default(5)
+  mana        Int      @default(0)
+  attack      Int      @default(10) // Mantido por legado, mas ideal usar forca/destreza
+  defense     Int      @default(5)  // Mantido por legado
+  
+  forca       Int      @default(3)
+  destreza    Int      @default(3)
+  inteligencia Int     @default(3)
+  velocidade  Int      @default(3)
+  
+  abilities   Json?    // Habilidades especiais, ataques, etc.
+  
   level       Int      @default(1)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

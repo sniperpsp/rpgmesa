@@ -45,6 +45,7 @@ Crie um prompt DETALHADO e VISUAL em inglês para gerar uma imagem deste persona
 - Ser em inglês
 - Focar em detalhes visuais (aparência física, roupas, arma, pose)
 - Incluir estilo artístico: "detailed fantasy digital art, high quality, professional illustration"
+- Se a arma for "sem arma", "nenhuma", "desarmado" ou se a descrição mencionar "mãos com magia/eletricidade", ESPECIFIQUE "unarmed, empty hands, casting magic with hands, glowing hands" e evite palavras como "holding" ou "wielding".
 - Ser conciso mas descritivo (máximo 150 palavras)
 - NÃO incluir o nome do personagem
 - Descrever a cena como "portrait" ou "character portrait"

@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
         // Consumir mana
         const newMana = Math.max(0, userParticipant.mana - ability.manaCost);
-        await prisma.participant.update({
+        await prisma.encounterParticipant.update({
             where: { id: userId },
             data: { mana: newMana }
         });
@@ -90,18 +90,22 @@ export async function POST(request: Request) {
 
         // Atualizar HP do alvo se mudou
         if (newHp !== target.hp) {
-            await prisma.participant.update({
+            await prisma.encounterParticipant.update({
                 where: { id: targetId },
                 data: { hp: newHp }
             });
         }
 
         // Criar log de combate
-        await prisma.combatLog.create({
+        await prisma.eventsLog.create({
             data: {
-                encounterId,
-                message,
-                type: ability.abilityType || 'ability'
+                roomId: encounter.roomId,
+                action: 'combat_log',
+                payload: {
+                    encounterId,
+                    message,
+                    type: ability.abilityType || 'ability'
+                }
             }
         });
 

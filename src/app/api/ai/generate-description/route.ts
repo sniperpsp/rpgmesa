@@ -14,47 +14,53 @@ export async function POST(request: Request) {
 
         switch (type) {
             case 'race':
-                prompt = `Crie uma descrição detalhada e imersiva para a raça "${name}" em um RPG de fantasia. 
-Inclua: características físicas, cultura, habilidades naturais, e papel no mundo.
-Máximo 200 palavras. Seja criativo e envolvente.`;
+                prompt = `Crie uma descrição CONCISA para a raça "${name}". 
+Inclua: aparência física marcante e principal traço cultural.
+Máximo 40 palavras. Seja direto.`;
                 break;
 
             case 'class':
-                prompt = `Crie uma descrição detalhada e imersiva para a classe "${name}" em um RPG de fantasia.
-Inclua: papel em combate, habilidades principais, estilo de jogo, e filosofia.
-Máximo 200 palavras. Seja criativo e envolvente.`;
+                prompt = `Crie uma descrição CONCISA para a classe "${name}".
+Inclua: estilo de combate principal e função no grupo.
+Máximo 40 palavras. Seja direto.`;
                 break;
 
             case 'item':
-                prompt = `Crie uma descrição detalhada e imersiva para o item "${name}" em um RPG de fantasia.
-Inclua: aparência, propriedades mágicas (se houver), história, e uso.
-Máximo 150 palavras. Seja criativo e envolvente.`;
+                prompt = `Crie uma descrição CONCISA para o item "${name}".
+Inclua: aparência e uso prático.
+Máximo 30 palavras. Seja direto.`;
                 break;
 
             case 'weapon':
-                prompt = `Crie uma descrição detalhada e imersiva para a arma "${name}" em um RPG de fantasia.
-Inclua: aparência, material, poder, história lendária, e efeitos especiais.
-Máximo 150 palavras. Seja criativo e envolvente.`;
+                prompt = `Crie uma descrição CONCISA para a arma "${name}".
+Inclua: estilo visual e tipo de dano.
+Máximo 30 palavras. Seja direto.`;
                 break;
 
             case 'monster':
-                prompt = `Crie uma descrição detalhada e aterrorizante para o monstro "${name}" em um RPG de fantasia.
-Inclua: aparência, comportamento, habitat, perigos, e fraquezas.
-Máximo 200 palavras. Seja criativo e assustador.`;
+                prompt = `Crie uma descrição CONCISA para o monstro "${name}".
+Inclua: aparência aterrorizante e comportamento principal.
+Máximo 40 palavras. Seja direto.`;
                 break;
 
             case 'ability':
                 const abilityContext = context || {};
-                prompt = `Crie uma descrição detalhada para a habilidade "${name}" em um RPG de fantasia.
-${abilityContext.abilityType ? `Tipo: ${abilityContext.abilityType}` : ''}
-${abilityContext.manaCost ? `Custo de Mana: ${abilityContext.manaCost}` : ''}
-Inclua: efeito visual, mecânica de jogo, e impacto tático.
-Máximo 100 palavras. Seja claro e direto.`;
+                prompt = `Você é um Game Designer ajudando iniciantes. Crie a mecânica para a habilidade "${name}".
+Contexto: ${JSON.stringify(abilityContext)}
+
+Gere uma descrição EXATAMENTE neste formato simplificado:
+
+"[Breve descrição visual]"
+**Efeito:** [Info de Dano. Ex: "Tira 10 de HP" ou "Dano 3-18 (3 dados de 6 lados)"]. Prefira dano direto a reduzir atributos.
+**Custo:** ${abilityContext.manaCost ? abilityContext.manaCost + ' Mana' : '[Sugira valor] Mana'}
+**Como Usar:** Jogue 1d20 + [Atributo]. Se tirar mais que [12], acerta.
+**Crítico:** Se tirar 20 no dado, o dano dobra.
+
+Seja didático e claro. O jogador é iniciante.`;
                 break;
 
             default:
-                prompt = `Crie uma descrição detalhada e imersiva para "${name}" em um RPG de fantasia.
-Máximo 150 palavras. Seja criativo e envolvente.`;
+                prompt = `Crie uma descrição curta e objetiva para "${name}". Máximo 30 palavras.`;
         }
 
         console.log(`🤖 [MISTRAL] Gerando descrição para ${type}: ${name}`);

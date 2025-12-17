@@ -29,25 +29,63 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Permissão negada" }, { status: 403 });
         }
 
-        // Criar participantes NPCs (monstros)
-        const npcParticipants = monsters.map((m: any) => ({
-            name: m.name,
-            hp: m.count ? m.count * 15 : 20,
-            maxHp: m.count ? m.count * 15 : 20,
-            mana: 0,
-            maxMana: 0,
-            initiative: 0,
-            isNPC: true,
-            statusEffects: []
-        }));
+        // Criar participantes NPCs (monstros) com Auto-Template
+        const npcParticipants = [];
+
+        for (const m of monsters) {
+            const name = m.name;
+            const slug = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+            let monsterT = await (prisma as any).monsterTemplate.findUnique({ where: { slug } });
+
+            if (!monsterT) {
+                // Criar template padrão se não existir
+                try {
+                    monsterT = await (prisma as any).monsterTemplate.create({
+                        data: {
+                            name: name,
+                            slug,
+                            isGlobal: false,
+                            ownerUserId: session.userId,
+                            baseHp: 30, // Valor base inicial
+                            baseMana: 10,
+                            baseForca: 4,
+                            baseDestreza: 4,
+                            baseInteligencia: 2,
+                            baseDefesa: 3,
+                            baseVelocidade: 3,
+                            abilities: []
+                        }
+                    });
+                    console.log(`👹 [AUTO-TEMPLATE] Monstro "${name}" criado`);
+                } catch (e) {
+                    console.error("Erro ao criar monster template", e);
+                }
+            }
+
+            // Adicionar monstros (se count > 1, repetir)
+            const count = m.count || 1;
+            for (let i = 0; i < count; i++) {
+                npcParticipants.push({
+                    name: count > 1 ? `${name} ${i + 1}` : name,
+                    hp: monsterT ? monsterT.baseHp : 20,
+                    maxHp: monsterT ? monsterT.baseHp : 20,
+                    mana: monsterT ? monsterT.baseMana : 0,
+                    maxMana: monsterT ? monsterT.baseMana : 0,
+                    initiative: 0,
+                    isNPC: true,
+                    statusEffects: []
+                });
+            }
+        }
 
         // Adicionar jogadores se solicitado
         const playerParticipants = addPlayers ? room.characterRooms.map(cr => ({
             name: cr.character.name,
-            hp: cr.roomStats ? Math.round(cr.roomStats.hp * cr.roomStats.hpMultiplier) : 25,
-            maxHp: cr.roomStats ? Math.round(cr.roomStats.hp * cr.roomStats.hpMultiplier) : 25,
-            mana: cr.roomStats ? Math.round(cr.roomStats.mana * cr.roomStats.manaMultiplier) : 12,
-            maxMana: cr.roomStats ? Math.round(cr.roomStats.mana * cr.roomStats.manaMultiplier) : 12,
+            hp: cr.roomStats ? cr.roomStats.hp : 25,
+            maxHp: cr.roomStats ? cr.roomStats.hp : 25,
+            mana: cr.roomStats ? cr.roomStats.mana : 12,
+            maxMana: cr.roomStats ? cr.roomStats.mana : 12,
             initiative: 0,
             isNPC: false,
             statusEffects: []

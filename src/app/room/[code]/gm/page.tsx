@@ -152,6 +152,19 @@ export default function GMPage() {
                 }
             }
             const data = await res.json();
+
+            // Verificar se o usuário é GM da sala
+            const userRes = await fetch("/api/auth/me");
+            if (userRes.ok) {
+                const userData = await userRes.json();
+                if (data.room.gmUserId !== userData.user.id) {
+                    // Não é GM, redirecionar para visão de jogador
+                    console.log('Você não é o GM desta sala. Redirecionando para visão de jogador...');
+                    router.push(`/room/${code}/player`);
+                    return;
+                }
+            }
+
             setRoom(data.room);
             setLoading(false);
         } catch (e) {
@@ -499,15 +512,14 @@ export default function GMPage() {
                                                             ✏️
                                                         </button>
                                                     </div>
-                                                    <p className="text-xl font-bold">{Math.round(cr.roomStats.hp * cr.roomStats.hpMultiplier)}</p>
-                                                    <p className="text-xs text-neutral-500">{cr.roomStats.hp} pontos × {cr.roomStats.hpMultiplier.toFixed(2)}</p>
+                                                    <p className="text-xl font-bold">{cr.roomStats.hp}</p>
                                                 </div>
                                                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
                                                     <div className="flex justify-between items-center mb-2">
                                                         <p className="text-blue-400 text-xs font-semibold">✨ Mana</p>
                                                         <button
                                                             onClick={() => {
-                                                                const newMana = prompt(`Nova Mana (pontos base):`, cr.roomStats!.mana.toString());
+                                                                const newMana = prompt(`Nova Mana:`, cr.roomStats!.mana.toString());
                                                                 if (newMana) handleEditCharacter(cr.id, { mana: parseInt(newMana) });
                                                             }}
                                                             className="text-xs px-2 py-1 bg-blue-500/20 hover:bg-blue-500/40 rounded"
@@ -515,8 +527,7 @@ export default function GMPage() {
                                                             ✏️
                                                         </button>
                                                     </div>
-                                                    <p className="text-xl font-bold">{Math.round(cr.roomStats.mana * cr.roomStats.manaMultiplier)}</p>
-                                                    <p className="text-xs text-neutral-500">{cr.roomStats.mana} pontos × {cr.roomStats.manaMultiplier.toFixed(2)}</p>
+                                                    <p className="text-xl font-bold">{cr.roomStats.mana}</p>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-2 text-sm">
                                                     <div className="bg-neutral-900/50 rounded-lg p-2">
@@ -571,6 +582,29 @@ export default function GMPage() {
                                                         ⏭️ Próximo Turno
                                                     </button>
                                                 )}
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            const res = await fetch(`/api/encounters/${encounter.id}/add-players`, {
+                                                                method: 'POST'
+                                                            });
+                                                            if (res.ok) {
+                                                                const data = await res.json();
+                                                                console.log('✅', data.message || 'Jogadores adicionados!');
+                                                                loadRoom();
+                                                            } else {
+                                                                const error = await res.json();
+                                                                console.error('❌', error.error || 'Erro ao adicionar jogadores');
+                                                            }
+                                                        } catch (e) {
+                                                            console.error('❌ Erro ao adicionar jogadores:', e);
+                                                        }
+                                                    }}
+                                                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition-all"
+                                                    title="Adicionar jogadores que entraram na sala"
+                                                >
+                                                    👥 Adicionar Jogadores
+                                                </button>
                                                 <button
                                                     onClick={() => handleToggleEncounter(encounter.id, !encounter.isActive)}
                                                     className={`px-4 py-2 rounded-xl font-semibold transition-all ${encounter.isActive ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-neutral-700/50 text-neutral-400 hover:bg-neutral-600/50'}`}

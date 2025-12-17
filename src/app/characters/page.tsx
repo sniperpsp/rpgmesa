@@ -33,15 +33,64 @@ export default function CharactersPage() {
     // Templates
     const [classTemplates, setClassTemplates] = useState<any[]>([]);
     const [raceTemplates, setRaceTemplates] = useState<any[]>([]);
+    const [abilityTemplates, setAbilityTemplates] = useState<any[]>([]);
 
     // Modais
     const [showClassModal, setShowClassModal] = useState(false);
     const [showRaceModal, setShowRaceModal] = useState(false);
     const [showWeaponModal, setShowWeaponModal] = useState(false);
+    const [showAbilityModal, setShowAbilityModal] = useState(false);
 
     // Preview de avatar
     const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
     const [generatingPreview, setGeneratingPreview] = useState(false);
+
+    // Habilidades selecionadas
+    const [selectedAbilities, setSelectedAbilities] = useState<any[]>([]);
+
+    // Estado para nova habilidade customizada
+    const [customAbility, setCustomAbility] = useState({
+        name: "",
+        description: "",
+        manaCost: 0,
+        abilityType: "attack",
+        rarity: "comum"
+    });
+    const [isGeneratingAbility, setIsGeneratingAbility] = useState(false);
+    const [abilityModalTab, setAbilityModalTab] = useState<'list' | 'create'>('list');
+
+    const generateAbilityDetails = async () => {
+        if (!customAbility.name) {
+            alert("Preencha o nome da habilidade primeiro!");
+            return;
+        }
+        setIsGeneratingAbility(true);
+        try {
+            const res = await fetch('/api/ai/generate-ability', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: customAbility.name,
+                    type: customAbility.abilityType,
+                    existingDescription: customAbility.description
+                })
+            });
+            const data = await res.json();
+            if (data.description || data.manaCost !== undefined) {
+                setCustomAbility(prev => ({
+                    ...prev,
+                    description: data.description || prev.description,
+                    manaCost: data.manaCost || prev.manaCost,
+                    rarity: data.rarity || prev.rarity
+                }));
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Erro ao gerar detalhes com IA");
+        } finally {
+            setIsGeneratingAbility(false);
+        }
+    };
 
     const commonWeapons = [
         "Espada Longa", "Espada Curta", "Machado de Batalha", "Martelo de Guerra",
@@ -50,8 +99,8 @@ export default function CharactersPage() {
     ];
 
     const calculatedStats = useMemo(() => {
-        const classT = classTemplates.find(c => c.name === newChar.class);
-        const raceT = raceTemplates.find(r => r.name === newChar.race);
+        const classT = classTemplates.find(c => c.name.toLowerCase() === newChar.class?.toLowerCase());
+        const raceT = raceTemplates.find(r => r.name.toLowerCase() === newChar.race?.toLowerCase());
 
         // Valores base padrão se não encontrar template
         const base = classT || {
@@ -59,21 +108,43 @@ export default function CharactersPage() {
             baseInteligencia: 3, baseDefesa: 3, baseVelocidade: 3
         };
 
-        const mod = raceT || {
+        // Se achou template usa, senão se tiver nome digitado simula um bônus genérico visual
+        const mod = raceT || (newChar.race ? {
+            modHp: 3, modMana: 3, modForca: 1, modDestreza: 0,
+            modInteligencia: 0, modDefesa: 0, modVelocidade: 0
+        } : {
             modHp: 0, modMana: 0, modForca: 0, modDestreza: 0,
             modInteligencia: 0, modDefesa: 0, modVelocidade: 0
-        };
+        });
+
+        let bonus = { forca: 0, destreza: 0, inteligencia: 0, defesa: 0, velocidade: 0 };
+
+        if (newChar.weapon) {
+            const w = newChar.weapon.toLowerCase();
+            if (['espada longa', 'machado de batalha', 'martelo de guerra', 'machado duplo', 'maça'].some(t => w.includes(t))) {
+                bonus.forca = 2;
+            } else if (['arco', 'besta', 'foice'].some(t => w.includes(t))) {
+                bonus.destreza = 2;
+            } else if (['adaga', 'espada curta', 'katana', 'mangual'].some(t => w.includes(t))) {
+                bonus.forca = 1; bonus.destreza = 1;
+            } else if (['cajado', 'varinha'].some(t => w.includes(t))) {
+                bonus.inteligencia = 2;
+            } else {
+                // Estimativa para arma custom (Backend fará aleatório, aqui mostramos +1/+1 genérico)
+                bonus.forca = 1; bonus.velocidade = 1;
+            }
+        }
 
         return {
             hp: (base.baseHp || 10) + (mod.modHp || 0),
             mana: (base.baseMana || 5) + (mod.modMana || 0),
-            forca: (base.baseForca || 3) + (mod.modForca || 0),
-            destreza: (base.baseDestreza || 3) + (mod.modDestreza || 0),
-            inteligencia: (base.baseInteligencia || 3) + (mod.modInteligencia || 0),
-            defesa: (base.baseDefesa || 3) + (mod.modDefesa || 0),
-            velocidade: (base.baseVelocidade || 3) + (mod.modVelocidade || 0),
+            forca: (base.baseForca || 3) + (mod.modForca || 0) + bonus.forca,
+            destreza: (base.baseDestreza || 3) + (mod.modDestreza || 0) + bonus.destreza,
+            inteligencia: (base.baseInteligencia || 3) + (mod.modInteligencia || 0) + bonus.inteligencia,
+            defesa: (base.baseDefesa || 3) + (mod.modDefesa || 0) + bonus.defesa,
+            velocidade: (base.baseVelocidade || 3) + (mod.modVelocidade || 0) + bonus.velocidade,
         };
-    }, [newChar.class, newChar.race, classTemplates, raceTemplates]);
+    }, [newChar.class, newChar.race, newChar.weapon, classTemplates, raceTemplates]);
 
     useEffect(() => {
         loadCharacters();
@@ -96,9 +167,10 @@ export default function CharactersPage() {
 
     async function loadTemplates() {
         try {
-            const [classesRes, racesRes] = await Promise.all([
+            const [classesRes, racesRes, abilitiesRes] = await Promise.all([
                 fetch('/api/templates/classes'),
                 fetch('/api/templates/races'),
+                fetch('/api/templates/abilities'),
             ]);
 
             if (classesRes.ok) {
@@ -108,6 +180,10 @@ export default function CharactersPage() {
             if (racesRes.ok) {
                 const data = await racesRes.json();
                 setRaceTemplates(data.races || []);
+            }
+            if (abilitiesRes.ok) {
+                const data = await abilitiesRes.json();
+                setAbilityTemplates(data.abilities || []);
             }
         } catch (e) {
             console.error("Erro ao carregar templates:", e);
@@ -177,14 +253,20 @@ export default function CharactersPage() {
                     race: newChar.race,
                     weapon: newChar.weapon,
                     appearance: newChar.appearance,
+                    abilities: selectedAbilities,
                     withStats: true,
-                    generateAvatar: newChar.generateAvatar
+                    // Se já temos um preview, enviamos ele como o avatar final
+                    avatarUrl: previewAvatar,
+                    // Só geramos no backend se o usuário quer e NÃO gerou um preview ainda
+                    generateAvatar: newChar.generateAvatar && !previewAvatar
                 }),
             });
 
             if (res.ok) {
                 setShowCreateForm(false);
                 setNewChar({ name: "", class: "", race: "", weapon: "", appearance: "", generateAvatar: true });
+                setSelectedAbilities([]);
+                setPreviewAvatar(null);
                 loadCharacters();
                 loadTemplates();
             } else {
@@ -258,10 +340,16 @@ export default function CharactersPage() {
         try {
             const res = await fetch(`/api/characters/${id}`, { method: "DELETE" });
             if (res.ok) {
+                alert("Personagem deletado com sucesso!");
                 loadCharacters();
+            } else {
+                const error = await res.json();
+                console.error("Erro ao deletar:", error);
+                alert(`Erro ao deletar personagem: ${error.error}\n${error.details || ''}`);
             }
         } catch (e) {
             console.error("Erro ao deletar personagem", e);
+            alert("Erro ao deletar personagem. Verifique o console para mais detalhes.");
         }
     }
 
@@ -400,6 +488,9 @@ export default function CharactersPage() {
                                                 <div className="font-bold">{calculatedStats.velocidade}</div>
                                             </div>
                                         </div>
+                                        <p className="text-[10px] text-neutral-500 mt-2 text-center italic">
+                                            * Estimativa: Armas e Raças novas recebem bônus aleatórios ao criar.
+                                        </p>
                                     </div>
                                 )}
 
@@ -422,6 +513,42 @@ export default function CharactersPage() {
                                             📋
                                         </button>
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* Habilidades */}
+                            <div>
+                                <label className="block text-sm font-semibold text-neutral-300 mb-2">Habilidades (Máx 3)</label>
+                                <div className="space-y-2">
+                                    {selectedAbilities.map((ability, index) => (
+                                        <div key={index} className="flex items-center justify-between p-3 bg-neutral-800/50 rounded-xl border border-neutral-700/50">
+                                            <div>
+                                                <div className="font-bold text-emerald-400">{ability.name}</div>
+                                                <div className="text-xs text-neutral-400">{ability.description ? (ability.description.length > 50 ? ability.description.slice(0, 50) + '...' : ability.description) : ''}</div>
+                                                <div className="text-xs text-blue-400 mt-1">{ability.manaCost} Mana • {ability.abilityType || 'Geral'}</div>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    const newAbilities = [...selectedAbilities];
+                                                    newAbilities.splice(index, 1);
+                                                    setSelectedAbilities(newAbilities);
+                                                }}
+                                                className="text-red-400 hover:text-red-300 px-2"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    ))}
+
+                                    {selectedAbilities.length < 3 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAbilityModal(true)}
+                                            className="w-full py-3 rounded-xl border-2 border-dashed border-neutral-700 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-neutral-400 hover:text-emerald-400 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <span>✨ Adicionar Habilidade</span>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
@@ -476,17 +603,19 @@ export default function CharactersPage() {
                                             </div>
                                         )}
                                         <div className="flex-1">
-                                            <p className="font-semibold text-indigo-300 mb-2">🔮 Pré-visualizar Avatar</p>
+                                            <p className="font-semibold text-indigo-300 mb-2">Seu Avatar</p>
                                             <p className="text-xs text-neutral-400 mb-3">
-                                                Veja como ficará o avatar antes de criar o personagem
+                                                {previewAvatar
+                                                    ? "Este avatar será salvo com seu personagem. Clique abaixo para trocar."
+                                                    : "Gere um avatar único agora ou deixe para gerar automaticamente ao salvar."}
                                             </p>
                                             <button
                                                 type="button"
                                                 onClick={handlePreviewAvatar}
                                                 disabled={generatingPreview || !newChar.name}
-                                                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/20"
                                             >
-                                                {generatingPreview ? "🎨 Gerando..." : previewAvatar ? "🔄 Gerar Novo" : "✨ Gerar Preview"}
+                                                {generatingPreview ? "🎨 Pintando..." : previewAvatar ? "🎲 Gerar Outra Opção" : "✨ Gerar Avatar Agora"}
                                             </button>
                                         </div>
                                     </div>
@@ -829,6 +958,154 @@ export default function CharactersPage() {
                             className="mt-6 w-full px-4 py-3 rounded-xl bg-neutral-800/50 hover:bg-neutral-700/50 transition-all"
                         >
                             Fechar
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Seleção de Habilidades */}
+            {showAbilityModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowAbilityModal(false)}>
+                    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+
+                        <div className="flex border-b border-neutral-800 mb-6">
+                            <button
+                                onClick={() => setAbilityModalTab('list')}
+                                className={`flex-1 pb-3 text-center transition-colors font-bold ${abilityModalTab === 'list' ? 'text-white border-b-2 border-emerald-500' : 'text-neutral-500 hover:text-neutral-300'}`}
+                            >
+                                📋 Selecionar Lista
+                            </button>
+                            <button
+                                onClick={() => setAbilityModalTab('create')}
+                                className={`flex-1 pb-3 text-center transition-colors font-bold ${abilityModalTab === 'create' ? 'text-white border-b-2 border-emerald-500' : 'text-neutral-500 hover:text-neutral-300'}`}
+                            >
+                                ✨ Criar Nova
+                            </button>
+                        </div>
+
+                        {abilityModalTab === 'list' ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {abilityTemplates.map((ability) => (
+                                    <button
+                                        key={ability.id}
+                                        onClick={() => {
+                                            if (selectedAbilities.length >= 3) {
+                                                alert("Máximo de 3 habilidades!");
+                                                return;
+                                            }
+                                            if (selectedAbilities.find(a => a.id === ability.id)) {
+                                                alert("Habilidade já selecionada!");
+                                                return;
+                                            }
+                                            setSelectedAbilities([...selectedAbilities, ability]);
+                                            setShowAbilityModal(false);
+                                        }}
+                                        className="p-4 rounded-xl bg-neutral-800/50 hover:bg-emerald-600/50 border border-neutral-700/50 hover:border-emerald-500 transition-all text-left"
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <p className="font-bold">{ability.name}</p>
+                                            <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">
+                                                {ability.manaCost} MP
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-neutral-400 mt-1 line-clamp-2">{ability.description}</p>
+                                        {ability.abilityType && (
+                                            <span className="text-xs text-neutral-500 mt-2 block capitalize">
+                                                Tipo: {ability.abilityType}
+                                            </span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm text-neutral-400 mb-1">Nome da Habilidade</label>
+                                    <input
+                                        type="text"
+                                        value={customAbility.name}
+                                        onChange={(e) => setCustomAbility({ ...customAbility, name: e.target.value })}
+                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl focus:outline-none focus:border-emerald-500 text-white placeholder-neutral-500"
+                                        placeholder="Ex: Bola de Fogo, Cura Rápida..."
+                                    />
+                                </div>
+                                <div className="grid grid-cols-1 gap-4">
+                                    <div>
+                                        <label className="block text-sm text-neutral-400 mb-1">Tipo da Habilidade</label>
+                                        <select
+                                            value={customAbility.abilityType}
+                                            onChange={(e) => setCustomAbility({ ...customAbility, abilityType: e.target.value })}
+                                            className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl focus:outline-none focus:border-emerald-500 text-white"
+                                        >
+                                            <option value="attack">⚔️ Ataque</option>
+                                            <option value="heal">💚 Cura</option>
+                                            <option value="buff">⬆️ Buff</option>
+                                            <option value="debuff">⬇️ Debuff</option>
+                                            <option value="protection">🛡️ Proteção</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={generateAbilityDetails}
+                                    disabled={isGeneratingAbility}
+                                    className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-xl text-white font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {isGeneratingAbility ? (
+                                        <>
+                                            <span className="animate-spin">⏳</span> Analisando Poder e Gerando Detalhes...
+                                        </>
+                                    ) : (
+                                        <>✨ Definir Raridade e Custo com IA</>
+                                    )}
+                                </button>
+
+                                <div className="flex gap-4 p-4 bg-neutral-800/30 rounded-xl border border-neutral-800">
+                                    <div className="flex-1 text-center border-r border-neutral-700/50">
+                                        <label className="block text-xs text-neutral-500 uppercase font-bold mb-1">Raridade</label>
+                                        <div className="text-xl font-bold text-purple-400 capitalize">{customAbility.rarity}</div>
+                                    </div>
+                                    <div className="flex-1 text-center">
+                                        <label className="block text-xs text-neutral-500 uppercase font-bold mb-1">Custo (MP)</label>
+                                        <div className="text-xl font-bold text-blue-400">{customAbility.manaCost}</div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-neutral-400 mb-1">Descrição</label>
+                                    <textarea
+                                        value={customAbility.description}
+                                        onChange={(e) => setCustomAbility({ ...customAbility, description: e.target.value })}
+                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl focus:outline-none focus:border-emerald-500 text-white placeholder-neutral-500"
+                                        rows={3}
+                                        placeholder="Descreva o efeito..."
+                                    />
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        if (!customAbility.name) {
+                                            alert("Nome é obrigatório!");
+                                            return;
+                                        }
+                                        if (selectedAbilities.length >= 3) {
+                                            alert("Máximo de 3 habilidades!");
+                                            return;
+                                        }
+                                        setSelectedAbilities([...selectedAbilities, { ...customAbility, id: 'temp-' + Date.now() }]);
+                                        setCustomAbility({ name: "", description: "", manaCost: 0, abilityType: "attack", rarity: "comum" });
+                                        setShowAbilityModal(false);
+                                    }}
+                                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition-all text-white"
+                                >
+                                    Adicionar Habilidade
+                                </button>
+                            </div>
+                        )}
+
+                        <button
+                            onClick={() => setShowAbilityModal(false)}
+                            className="mt-6 w-full px-4 py-3 rounded-xl bg-neutral-800/50 hover:bg-neutral-700/50 transition-all"
+                        >
+                            Cancelar
                         </button>
                     </div>
                 </div>

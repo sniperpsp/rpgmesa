@@ -20,7 +20,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
             include: { room: true }
         });
 
-        if (!encounter || encounter.room.gmUserId !== session.userId) {
+        if (!encounter) {
+            return NextResponse.json({ error: "Encontro não encontrado" }, { status: 404 });
+        }
+
+        console.log('Toggle Encounter - Session User ID:', session.userId);
+        console.log('Toggle Encounter - Room GM ID:', encounter.room.gmUserId);
+        console.log('Toggle Encounter - Is GM:', encounter.room.gmUserId === session.userId);
+
+        if (encounter.room.gmUserId !== session.userId) {
             return NextResponse.json({ error: "Permissão negada" }, { status: 403 });
         }
 

@@ -166,7 +166,17 @@ export async function DELETE(
 
         // Verificar se o personagem pertence ao usuário
         const character = await prisma.character.findUnique({
-            where: { id }
+            where: { id },
+            include: {
+                stats: true,
+                abilities: true,
+                rooms: {
+                    include: {
+                        roomStats: true,
+                        roomAbilities: true
+                    }
+                }
+            }
         });
 
         if (!character) {
@@ -177,14 +187,68 @@ export async function DELETE(
             return NextResponse.json({ error: "Você não tem permissão para deletar este personagem" }, { status: 403 });
         }
 
+        console.log(`🗑️ [CHARACTER] Deletando personagem "${character.name}" (ID: ${id})`);
+        console.log(`   - Stats: ${character.stats ? 'Sim' : 'Não'}`);
+        console.log(`   - Abilities: ${character.abilities.length}`);
+        console.log(`   - Rooms: ${character.rooms.length}`);
+
+        // Deletar manualmente todos os relacionamentos para garantir
+        // 1. Deletar habilidades de sala
+        for (const room of character.rooms) {
+            if (room.roomAbilities.length > 0) {
+                await prisma.characterRoomAbility.deleteMany({
+                    where: { characterRoomId: room.id }
+                });
+                console.log(`   ✓ Deletadas ${room.roomAbilities.length} habilidades de sala`);
+            }
+
+            // 2. Deletar stats de sala
+            if (room.roomStats) {
+                await prisma.characterRoomStats.delete({
+                    where: { id: room.roomStats.id }
+                });
+                console.log(`   ✓ Deletados stats de sala`);
+            }
+        }
+
+        // 3. Deletar relações com salas
+        if (character.rooms.length > 0) {
+            await prisma.characterRoom.deleteMany({
+                where: { characterId: id }
+            });
+            console.log(`   ✓ Deletadas ${character.rooms.length} relações com salas`);
+        }
+
+        // 4. Deletar habilidades do personagem
+        if (character.abilities.length > 0) {
+            await prisma.characterAbility.deleteMany({
+                where: { characterId: id }
+            });
+            console.log(`   ✓ Deletadas ${character.abilities.length} habilidades`);
+        }
+
+        // 5. Deletar stats do personagem
+        if (character.stats) {
+            await prisma.characterStats.delete({
+                where: { id: character.stats.id }
+            });
+            console.log(`   ✓ Deletados stats`);
+        }
+
+        // 6. Finalmente, deletar o personagem
         await prisma.character.delete({
             where: { id }
         });
 
-        console.log(`✅ [CHARACTER] Personagem "${character.name}" deletado`);
+        console.log(`✅ [CHARACTER] Personagem "${character.name}" deletado com sucesso`);
         return NextResponse.json({ message: "Personagem deletado com sucesso" }, { status: 200 });
-    } catch (e) {
-        console.error("/api/characters/[id] DELETE", e);
-        return NextResponse.json({ error: "Erro ao deletar personagem" }, { status: 500 });
+    } catch (e: any) {
+        console.error("❌ [CHARACTER DELETE] Erro:", e);
+        console.error("   Mensagem:", e.message);
+        console.error("   Stack:", e.stack);
+        return NextResponse.json({
+            error: "Erro ao deletar personagem",
+            details: e.message
+        }, { status: 500 });
     }
 }

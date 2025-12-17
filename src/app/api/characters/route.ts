@@ -44,7 +44,8 @@ export async function POST(request: Request) {
             avatarUrl,
             weapon,
             appearance,
-            generateAvatar
+            generateAvatar,
+            abilities
         } = body || {};
 
         if (!name) return NextResponse.json({ error: "Nome é obrigatório" }, { status: 400 });
@@ -224,13 +225,15 @@ Retorne APENAS o prompt, sem explicações ou formatação adicional.`;
                             description: `Raça criada automaticamente`,
                             isGlobal: false,
                             ownerUserId: userId,
-                            modHp: 0,
-                            modMana: 0,
-                            modForca: 0,
-                            modDestreza: 0,
-                            modInteligencia: 0,
-                            modDefesa: 0,
-                            modVelocidade: 0,
+                            // Atributos Aleatórios para Raças Novas
+                            modHp: Math.floor(Math.random() * 5) + 2,   // +2 a +6 HP
+                            modMana: Math.floor(Math.random() * 5) + 2, // +2 a +6 Mana
+                            modForca: Math.random() > 0.5 ? 1 : 0,
+                            modDestreza: Math.random() > 0.5 ? 1 : 0,
+                            modInteligencia: Math.random() > 0.5 ? 1 : 0,
+                            modDefesa: Math.random() > 0.5 ? 1 : 0,
+                            modVelocidade: Math.random() > 0.5 ? 1 : 0,
+                            // Garantir pelo menos +1 em algo se o random falhar muito (opcional, mas o random acima cobre bem)
                         }
                     });
                     console.log(`✅ [AUTO-TEMPLATE] Raça "${race}" criada`);
@@ -285,9 +288,73 @@ Retorne APENAS o prompt, sem explicações ou formatação adicional.`;
             }
         }
 
+
+        // Bônus de Atributos por Arma (Com Auto-Template)
+        if (weapon) {
+            const slug = weapon.toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+            let weaponT = await (prisma as any).weaponTemplate.findUnique({ where: { slug } });
+
+            if (!weaponT) {
+                // Se não existe, define stats iniciais padrão
+                const w = weapon.toLowerCase();
+                let initialStats = { modForca: 0, modDestreza: 0, modInteligencia: 0, modDefesa: 0, modVelocidade: 0 };
+
+                if (['espada longa', 'machado de batalha', 'martelo de guerra', 'machado duplo', 'maça'].some(type => w.includes(type))) {
+                    initialStats.modForca = 2;
+                } else if (['arco', 'besta', 'foice'].some(type => w.includes(type))) {
+                    initialStats.modDestreza = 2;
+                } else if (['adaga', 'espada curta', 'katana', 'mangual'].some(type => w.includes(type))) {
+                    initialStats.modForca = 1; initialStats.modDestreza = 1;
+                } else if (['cajado', 'varinha'].some(type => w.includes(type))) {
+                    initialStats.modInteligencia = 2;
+                } else {
+                    // Arma customizada: +2 aleatório
+                    const attrs = ['modForca', 'modDestreza', 'modInteligencia', 'modDefesa', 'modVelocidade'];
+                    // @ts-ignore
+                    initialStats[attrs[Math.floor(Math.random() * attrs.length)]] += 1;
+                    // @ts-ignore
+                    initialStats[attrs[Math.floor(Math.random() * attrs.length)]] += 1;
+                }
+
+                // Cria o template
+                try {
+                    weaponT = await (prisma as any).weaponTemplate.create({
+                        data: {
+                            name: weapon,
+                            slug,
+                            isGlobal: false,
+                            ownerUserId: userId,
+                            ...initialStats
+                        }
+                    });
+                    console.log(`⚔️ [AUTO-TEMPLATE] Arma "${weapon}" criada`);
+                } catch (e) {
+                    console.error('Erro ao criar weapon template', e);
+                }
+            }
+
+            // Aplica os stats do template (seja novo ou existente)
+            if (weaponT) {
+                statsData.forca += weaponT.modForca || 0;
+                statsData.destreza += weaponT.modDestreza || 0;
+                statsData.inteligencia += weaponT.modInteligencia || 0;
+                statsData.defesa += weaponT.modDefesa || 0;
+                statsData.velocidade += weaponT.modVelocidade || 0;
+                // Armas geralmente não dão HP/Mana, mas se o template tiver, aplica
+                statsData.hp += weaponT.modHp || 0;
+                statsData.mana += weaponT.modMana || 0;
+            }
+        }
+
         // Gerar multiplicadores aleatórios baseados na classe
         const { getRandomMultiplier } = await import('@/lib/classMultipliers');
         const multipliers = getRandomMultiplier(charClass);
+
+        statsData.hp = Math.round(statsData.hp * multipliers.hp);
+        statsData.mana = Math.round(statsData.mana * multipliers.mana);
 
         const character = await prisma.character.create({
             data: {
@@ -295,15 +362,22 @@ Retorne APENAS o prompt, sem explicações ou formatação adicional.`;
                 name,
                 class: charClass ?? null,
                 race: race ?? null,
+                weapon: weapon ?? null,
                 notes: notes ?? null,
                 avatarUrl: finalAvatarUrl ?? null,
                 stats: {
                     create: {
-                        ...statsData,
-                        hpMultiplier: multipliers.hp,
-                        manaMultiplier: multipliers.mana
+                        ...statsData
                     }
                 },
+                abilities: abilities && abilities.length > 0 ? {
+                    create: abilities.map((a: any) => ({
+                        name: a.name,
+                        description: a.description,
+                        manaCost: a.manaCost,
+                        abilityType: a.abilityType
+                    }))
+                } : undefined,
             },
             include: { stats: true, abilities: true },
         });
