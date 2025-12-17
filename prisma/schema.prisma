@@ -191,13 +191,14 @@ model EventsLog {
 }
 
 model Encounter {
-  id          String   @id @default(uuid()) @db.Uuid
-  roomId      String   @map("room_id") @db.Uuid
-  name        String?
-  description String?
-  isActive    Boolean  @default(false) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(uuid()) @db.Uuid
+  roomId           String   @map("room_id") @db.Uuid
+  name             String?
+  description      String?
+  isActive         Boolean  @default(false) @map("is_active")
+  currentTurnIndex Int      @default(0) @map("current_turn_index")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   room         Room                    @relation(fields: [roomId], references: [id], onDelete: Cascade)
   participants EncounterParticipant[]

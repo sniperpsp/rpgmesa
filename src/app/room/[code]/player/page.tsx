@@ -128,8 +128,22 @@ export default function PlayerPage() {
             (p) => p.name === currentChar.character.name && !p.isNPC
         );
 
-        // Se o jogador está no encontro ativo, mostrar interface de combate
-        setIsMyTurn(!!myParticipant);
+        if (!myParticipant) {
+            setIsMyTurn(false);
+            return;
+        }
+
+        // Ordenar participantes por iniciativa (maior primeiro)
+        const sortedParticipants = [...activeEncounter.participants].sort(
+            (a, b) => b.initiative - a.initiative
+        );
+
+        // Verificar se é realmente o turno do jogador
+        const currentTurnIndex = (activeEncounter as any).currentTurnIndex || 0;
+        const currentTurnParticipant = sortedParticipants[currentTurnIndex];
+
+        // É o turno do jogador se o participante atual é ele
+        setIsMyTurn(currentTurnParticipant?.id === myParticipant.id);
     }
 
     async function loadRoom() {
@@ -384,6 +398,60 @@ export default function PlayerPage() {
                                                 <p className="text-sm text-neutral-400">{activeEncounter.name}</p>
                                             </div>
                                         </div>
+
+                                        {/* Ordem de Iniciativa */}
+                                        {(() => {
+                                            const sortedParticipants = [...activeEncounter.participants].sort(
+                                                (a, b) => b.initiative - a.initiative
+                                            );
+                                            const myIndex = sortedParticipants.findIndex(
+                                                p => p.name === myParticipant?.name && !p.isNPC
+                                            );
+                                            const currentTurnIndex = (activeEncounter as any).currentTurnIndex || 0;
+
+                                            return (
+                                                <div className="mb-4 p-3 bg-purple-900/20 border border-purple-500/30 rounded-xl">
+                                                    <h4 className="text-xs font-bold text-purple-400 mb-2 flex items-center gap-2">
+                                                        🎲 Ordem de Iniciativa
+                                                    </h4>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {sortedParticipants.map((p, idx) => {
+                                                            const isMe = p.name === myParticipant?.name && !p.isNPC;
+                                                            const isAlive = p.hp > 0;
+                                                            const isCurrentTurn = idx === currentTurnIndex;
+
+                                                            return (
+                                                                <div
+                                                                    key={p.id}
+                                                                    className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-2 ${isCurrentTurn
+                                                                        ? 'bg-yellow-500/40 border-2 border-yellow-400 text-yellow-200 animate-pulse'
+                                                                        : isMe
+                                                                            ? 'bg-emerald-500/30 border-2 border-emerald-400 text-emerald-300'
+                                                                            : p.isNPC
+                                                                                ? 'bg-red-500/20 border border-red-500/30 text-red-400'
+                                                                                : 'bg-blue-500/20 border border-blue-500/30 text-blue-400'
+                                                                        } ${!isAlive ? 'opacity-50' : ''}`}
+                                                                >
+                                                                    <span className="text-neutral-500">#{idx + 1}</span>
+                                                                    <span>{p.name}</span>
+                                                                    <span className="text-neutral-500">({p.initiative})</span>
+                                                                    {isMe && <span>👤</span>}
+                                                                    {isCurrentTurn && <span>⚡</span>}
+                                                                    {!isAlive && <span>💀</span>}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    {myIndex >= 0 && (
+                                                        <p className="text-xs text-neutral-500 mt-2">
+                                                            {currentTurnIndex === myIndex
+                                                                ? "🎯 É SUA VEZ! Escolha sua ação."
+                                                                : `Você é o ${myIndex + 1}º na ordem de ataque`}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
 
                                         {/* Meus Stats de Combate */}
                                         <div className="mb-4 p-3 bg-black/30 rounded-xl">

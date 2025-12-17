@@ -702,11 +702,11 @@ export default function GMPage() {
                             </div>
                         ) : (
                             room.encounters.map(encounter => {
-                                // Separar jogadores e NPCs
-                                const players = encounter.participants.filter(p => !p.isNPC).sort((a, b) => b.initiative - a.initiative);
-                                const npcs = encounter.participants.filter(p => p.isNPC).sort((a, b) => b.initiative - a.initiative);
-                                const allParticipants = [...players, ...npcs];
-                                const currentTurn = encounter.isActive && allParticipants[currentTurnIndex];
+                                // Ordenar TODOS os participantes por iniciativa (maior primeiro)
+                                const allParticipants = encounter.participants.sort((a, b) => b.initiative - a.initiative);
+                                const players = allParticipants.filter(p => !p.isNPC);
+                                const npcs = allParticipants.filter(p => p.isNPC);
+                                const currentTurn = encounter.isActive && allParticipants[(encounter as any).currentTurnIndex || 0];
 
                                 return (
                                     <div key={encounter.id} className="bg-neutral-900/50 backdrop-blur-xl border border-neutral-800/50 rounded-3xl p-6">
@@ -718,8 +718,26 @@ export default function GMPage() {
                                             <div className="flex gap-3">
                                                 {encounter.isActive && (
                                                     <button
-                                                        onClick={() => {
-                                                            setCurrentTurnIndex((prev) => (prev + 1) % allParticipants.length);
+                                                        onClick={async () => {
+                                                            console.log('🔵 Clicou em Próximo Turno');
+                                                            console.log('🔵 Encounter ID:', encounter.id);
+                                                            console.log('🔵 Current Turn Index:', (encounter as any).currentTurnIndex);
+                                                            try {
+                                                                const res = await fetch(`/api/encounters/${encounter.id}/next-turn`, {
+                                                                    method: 'POST'
+                                                                });
+                                                                console.log('🔵 Response status:', res.status);
+                                                                const data = await res.json();
+                                                                console.log('🔵 Response data:', data);
+                                                                if (res.ok) {
+                                                                    console.log('✅ Turno avançado! Recarregando...');
+                                                                    loadRoom();
+                                                                } else {
+                                                                    console.error('❌ Erro na resposta:', data);
+                                                                }
+                                                            } catch (e) {
+                                                                console.error('❌ Erro ao avançar turno:', e);
+                                                            }
                                                         }}
                                                         className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-all"
                                                     >

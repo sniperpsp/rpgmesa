@@ -82,16 +82,32 @@ export async function POST(request: Request) {
         }
 
         // Adicionar jogadores se solicitado
-        const playerParticipants = addPlayers ? room.characterRooms.map(cr => ({
-            name: cr.character.name,
-            hp: cr.roomStats ? cr.roomStats.hp : 25,
-            maxHp: cr.roomStats ? cr.roomStats.hp : 25,
-            mana: cr.roomStats ? cr.roomStats.mana : 12,
-            maxMana: cr.roomStats ? cr.roomStats.mana : 12,
-            initiative: 0,
-            isNPC: false,
-            statusEffects: []
-        })) : [];
+        const playerParticipants = addPlayers ? room.characterRooms.map(cr => {
+            // Rolar iniciativa: d20 + modificador de destreza
+            const dexMod = cr.roomStats ? Math.floor((cr.roomStats.destreza - 10) / 2) : 0;
+            const initiativeRoll = Math.floor(Math.random() * 20) + 1 + dexMod;
+
+            return {
+                name: cr.character.name,
+                hp: cr.roomStats ? cr.roomStats.hp : 25,
+                maxHp: cr.roomStats ? cr.roomStats.hp : 25,
+                mana: cr.roomStats ? cr.roomStats.mana : 12,
+                maxMana: cr.roomStats ? cr.roomStats.mana : 12,
+                initiative: initiativeRoll,
+                isNPC: false,
+                statusEffects: []
+            };
+        }) : [];
+
+        // Adicionar iniciativa aos NPCs também
+        const npcParticipantsWithInitiative = npcParticipants.map(npc => {
+            // NPCs usam iniciativa base + d20
+            const initiativeRoll = Math.floor(Math.random() * 20) + 1;
+            return {
+                ...npc,
+                initiative: initiativeRoll
+            };
+        });
 
         const encounter = await prisma.encounter.create({
             data: {
@@ -99,11 +115,13 @@ export async function POST(request: Request) {
                 name: name || "Encontro Gerado",
                 isActive: false,
                 participants: {
-                    create: [...npcParticipants, ...playerParticipants]
+                    create: [...npcParticipantsWithInitiative, ...playerParticipants]
                 }
             },
             include: { participants: true }
         });
+
+        console.log(`⚔️ Encontro criado com ${npcParticipantsWithInitiative.length} NPCs e ${playerParticipants.length} jogadores`);
 
         return NextResponse.json({ encounter });
 
