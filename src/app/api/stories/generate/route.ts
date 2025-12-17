@@ -35,7 +35,16 @@ export async function POST(request: Request) {
         
         Regras:
         1. O Ato 1 deve introduzir a trama e ter pelo menos um desafio inicial.
-        2. Retorne APENAS um JSON válido com a seguinte estrutura:
+        2. Para os monstros, use stats numéricos apropriados:
+           - hp: 10-50 (pontos de vida)
+           - mana: 0-30 (monstros mágicos têm mais)
+           - forca: 2-6 (força física)
+           - destreza: 2-6 (agilidade)
+           - inteligencia: 1-5 (inteligência)
+           - defesa: 2-5 (resistência)
+           - velocidade: 2-6 (rapidez)
+           - level: 1-5 (nível de desafio)
+        3. Retorne APENAS um JSON válido com a seguinte estrutura:
         {
             "title": "Título da Campanha",
             "summary": "Resumo geral da trama...",
@@ -46,8 +55,8 @@ export async function POST(request: Request) {
                 "suggestedEncounter": {
                     "name": "Nome do Encontro (ex: Emboscada Goblin)",
                     "monsters": [
-                        { "name": "Goblin", "count": 2, "stats": "HP: 15, ATK: +3" },
-                        { "name": "Lobo", "count": 1, "stats": "HP: 20, ATK: +4" }
+                        { "name": "Goblin", "count": 2, "hp": 15, "mana": 0, "forca": 3, "destreza": 4, "inteligencia": 2, "defesa": 2, "velocidade": 4, "level": 1 },
+                        { "name": "Lobo", "count": 1, "hp": 20, "mana": 0, "forca": 4, "destreza": 5, "inteligencia": 1, "defesa": 3, "velocidade": 6, "level": 2 }
                     ]
                 },
                 "puzzle": {

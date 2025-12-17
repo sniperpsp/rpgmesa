@@ -39,7 +39,7 @@ export async function POST(request: Request) {
             let monsterT = await (prisma as any).monsterTemplate.findUnique({ where: { slug } });
 
             if (!monsterT) {
-                // Criar template padrão se não existir
+                // Criar template com stats da IA ou valores padrão
                 try {
                     monsterT = await (prisma as any).monsterTemplate.create({
                         data: {
@@ -47,17 +47,19 @@ export async function POST(request: Request) {
                             slug,
                             isGlobal: false,
                             ownerUserId: session.userId,
-                            baseHp: 30, // Valor base inicial
-                            baseMana: 10,
-                            baseForca: 4,
-                            baseDestreza: 4,
-                            baseInteligencia: 2,
-                            baseDefesa: 3,
-                            baseVelocidade: 3,
-                            abilities: []
+                            hp: m.hp || m.baseHp || 30,
+                            mana: m.mana || m.baseMana || 10,
+                            forca: m.forca || m.baseForca || 4,
+                            destreza: m.destreza || m.baseDestreza || 4,
+                            inteligencia: m.inteligencia || m.baseInteligencia || 2,
+                            velocidade: m.velocidade || m.baseVelocidade || 3,
+                            attack: m.attack || 10,
+                            defense: m.defesa || m.defense || 3,
+                            level: m.level || 1,
+                            abilities: m.abilities || []
                         }
                     });
-                    console.log(`👹 [AUTO-TEMPLATE] Monstro "${name}" criado`);
+                    console.log(`👹 [AUTO-TEMPLATE] Monstro "${name}" criado com stats da IA`);
                 } catch (e) {
                     console.error("Erro ao criar monster template", e);
                 }
@@ -68,10 +70,10 @@ export async function POST(request: Request) {
             for (let i = 0; i < count; i++) {
                 npcParticipants.push({
                     name: count > 1 ? `${name} ${i + 1}` : name,
-                    hp: monsterT ? monsterT.baseHp : 20,
-                    maxHp: monsterT ? monsterT.baseHp : 20,
-                    mana: monsterT ? monsterT.baseMana : 0,
-                    maxMana: monsterT ? monsterT.baseMana : 0,
+                    hp: monsterT ? monsterT.hp : (m.hp || 20),
+                    maxHp: monsterT ? monsterT.hp : (m.hp || 20),
+                    mana: monsterT ? monsterT.mana : (m.mana || 0),
+                    maxMana: monsterT ? monsterT.mana : (m.mana || 0),
                     initiative: 0,
                     isNPC: true,
                     statusEffects: []

@@ -48,7 +48,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         Regras:
         1. Crie apenas UM ato (o próximo).
         2. Inclua sugestão de combate E/OU puzzle baseados na nova situação.
-        3. Retorne APENAS JSON válido:
+        3. Para os monstros, use stats numéricos apropriados:
+           - hp: 10-50, mana: 0-30, forca: 2-6, destreza: 2-6
+           - inteligencia: 1-5, defesa: 2-5, velocidade: 2-6, level: 1-5
+        4. Retorne APENAS JSON válido:
         {
             "act": {
                 "title": "Ato ${nextOrder}: [Título]",
@@ -57,7 +60,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
                 "suggestedEncounter": {
                     "name": "Nome do Encontro",
                     "monsters": [
-                        { "name": "Monstro", "count": 1, "stats": "..." }
+                        { "name": "Monstro", "count": 1, "hp": 25, "mana": 5, "forca": 4, "destreza": 3, "inteligencia": 2, "defesa": 3, "velocidade": 4, "level": 2 }
                     ]
                 },
                 "puzzle": {

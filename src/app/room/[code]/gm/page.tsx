@@ -134,6 +134,21 @@ export default function GMPage() {
         monsters: [{ name: '', hp: 20, forca: 3, destreza: 3, defesa: 3 }]
     });
 
+    // Ability Modal States
+    const [showAbilityModal, setShowAbilityModal] = useState(false);
+    const [selectedCharacterForAbility, setSelectedCharacterForAbility] = useState<any>(null);
+    const [newAbility, setNewAbility] = useState({
+        name: '',
+        description: '',
+        manaCost: 5,
+        abilityType: 'attack' as 'attack' | 'heal' | 'buff' | 'debuff' | 'protection',
+        damage: 10,
+        healing: 0,
+        buffValue: 0,
+        debuffValue: 0,
+        protectionValue: 0
+    });
+
     useEffect(() => {
         loadRoom();
     }, [code]);
@@ -314,6 +329,42 @@ export default function GMPage() {
             alert("Erro ao atualizar personagem");
         }
     }
+
+    async function handleCreateAbility(e: React.FormEvent) {
+        e.preventDefault();
+        if (!selectedCharacterForAbility) return;
+
+        try {
+            const res = await fetch(`/api/character-rooms/${selectedCharacterForAbility.id}/abilities`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(newAbility),
+            });
+
+            if (res.ok) {
+                setShowAbilityModal(false);
+                setNewAbility({
+                    name: '',
+                    description: '',
+                    manaCost: 5,
+                    abilityType: 'attack',
+                    damage: 10,
+                    healing: 0,
+                    buffValue: 0,
+                    debuffValue: 0,
+                    protectionValue: 0
+                });
+                loadRoom();
+                console.log('✅ Habilidade criada com sucesso!');
+            } else {
+                const error = await res.json();
+                console.error('❌ Erro ao criar habilidade:', error.error);
+            }
+        } catch (e) {
+            console.error('❌ Erro ao criar habilidade:', e);
+        }
+    }
+
 
     async function handleAttack(targetId: string) {
         if (!attacker || !activeEncounterId) return;
@@ -531,13 +582,106 @@ export default function GMPage() {
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-2 text-sm">
                                                     <div className="bg-neutral-900/50 rounded-lg p-2">
-                                                        <p className="text-neutral-500 text-xs">Força</p>
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <p className="text-neutral-500 text-xs">Força</p>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newVal = prompt(`Nova Força:`, cr.roomStats!.forca.toString());
+                                                                    if (newVal) handleEditCharacter(cr.id, { forca: parseInt(newVal) });
+                                                                }}
+                                                                className="text-xs px-1 py-0.5 bg-neutral-700/50 hover:bg-neutral-600/50 rounded"
+                                                            >
+                                                                ✏️
+                                                            </button>
+                                                        </div>
                                                         <p className="font-bold">{cr.roomStats.forca}</p>
                                                     </div>
                                                     <div className="bg-neutral-900/50 rounded-lg p-2">
-                                                        <p className="text-neutral-500 text-xs">Destreza</p>
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <p className="text-neutral-500 text-xs">Destreza</p>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newVal = prompt(`Nova Destreza:`, cr.roomStats!.destreza.toString());
+                                                                    if (newVal) handleEditCharacter(cr.id, { destreza: parseInt(newVal) });
+                                                                }}
+                                                                className="text-xs px-1 py-0.5 bg-neutral-700/50 hover:bg-neutral-600/50 rounded"
+                                                            >
+                                                                ✏️
+                                                            </button>
+                                                        </div>
                                                         <p className="font-bold">{cr.roomStats.destreza}</p>
                                                     </div>
+                                                    <div className="bg-neutral-900/50 rounded-lg p-2">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <p className="text-neutral-500 text-xs">Inteligência</p>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newVal = prompt(`Nova Inteligência:`, cr.roomStats!.inteligencia.toString());
+                                                                    if (newVal) handleEditCharacter(cr.id, { inteligencia: parseInt(newVal) });
+                                                                }}
+                                                                className="text-xs px-1 py-0.5 bg-neutral-700/50 hover:bg-neutral-600/50 rounded"
+                                                            >
+                                                                ✏️
+                                                            </button>
+                                                        </div>
+                                                        <p className="font-bold">{cr.roomStats.inteligencia}</p>
+                                                    </div>
+                                                    <div className="bg-neutral-900/50 rounded-lg p-2">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <p className="text-neutral-500 text-xs">Defesa</p>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newVal = prompt(`Nova Defesa:`, cr.roomStats!.defesa.toString());
+                                                                    if (newVal) handleEditCharacter(cr.id, { defesa: parseInt(newVal) });
+                                                                }}
+                                                                className="text-xs px-1 py-0.5 bg-neutral-700/50 hover:bg-neutral-600/50 rounded"
+                                                            >
+                                                                ✏️
+                                                            </button>
+                                                        </div>
+                                                        <p className="font-bold">{cr.roomStats.defesa}</p>
+                                                    </div>
+                                                    <div className="bg-neutral-900/50 rounded-lg p-2 col-span-2">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <p className="text-neutral-500 text-xs">Velocidade</p>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newVal = prompt(`Nova Velocidade:`, cr.roomStats!.velocidade.toString());
+                                                                    if (newVal) handleEditCharacter(cr.id, { velocidade: parseInt(newVal) });
+                                                                }}
+                                                                className="text-xs px-1 py-0.5 bg-neutral-700/50 hover:bg-neutral-600/50 rounded"
+                                                            >
+                                                                ✏️
+                                                            </button>
+                                                        </div>
+                                                        <p className="font-bold">{cr.roomStats.velocidade}</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Habilidades do Personagem */}
+                                                <div className="mt-4 pt-4 border-t border-neutral-700/50">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <p className="text-neutral-400 text-sm font-semibold">Habilidades ({cr.roomAbilities.length})</p>
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedCharacterForAbility(cr);
+                                                                setShowAbilityModal(true);
+                                                            }}
+                                                            className="text-xs px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold"
+                                                        >
+                                                            ✨ Adicionar Habilidade
+                                                        </button>
+                                                    </div>
+                                                    {cr.roomAbilities.length > 0 && (
+                                                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                                                            {cr.roomAbilities.map((ability) => (
+                                                                <div key={ability.id} className="text-xs bg-neutral-800/50 rounded px-2 py-1 flex justify-between items-center">
+                                                                    <span className="font-medium">{ability.name}</span>
+                                                                    <span className="text-neutral-500">{ability.manaCost} mana</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}
@@ -1100,6 +1244,154 @@ export default function GMPage() {
                         >
                             Cancelar
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Ability Creation Modal */}
+            {showAbilityModal && selectedCharacterForAbility && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <h2 className="text-2xl font-bold mb-6">
+                            ✨ Criar Habilidade para {selectedCharacterForAbility.character.name}
+                        </h2>
+
+                        <form onSubmit={handleCreateAbility} className="space-y-4">
+                            <div>
+                                <label className="block text-sm text-neutral-400 mb-2">Nome da Habilidade</label>
+                                <input
+                                    type="text"
+                                    value={newAbility.name}
+                                    onChange={(e) => setNewAbility({ ...newAbility, name: e.target.value })}
+                                    className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-neutral-400 mb-2">Descrição</label>
+                                <textarea
+                                    value={newAbility.description}
+                                    onChange={(e) => setNewAbility({ ...newAbility, description: e.target.value })}
+                                    className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50 h-24"
+                                    required
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-neutral-400 mb-2">Custo de Mana</label>
+                                    <input
+                                        type="number"
+                                        value={newAbility.manaCost}
+                                        onChange={(e) => setNewAbility({ ...newAbility, manaCost: parseInt(e.target.value) })}
+                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                        min="0"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm text-neutral-400 mb-2">Tipo</label>
+                                    <select
+                                        value={newAbility.abilityType}
+                                        onChange={(e) => setNewAbility({ ...newAbility, abilityType: e.target.value as any })}
+                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                    >
+                                        <option value="attack">Ataque</option>
+                                        <option value="heal">Cura</option>
+                                        <option value="buff">Buff</option>
+                                        <option value="debuff">Debuff</option>
+                                        <option value="protection">Proteção</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Conditional Fields Based on Type */}
+                            {newAbility.abilityType === 'attack' && (
+                                <div>
+                                    <label className="block text-sm text-neutral-400 mb-2">Dano</label>
+                                    <input
+                                        type="number"
+                                        value={newAbility.damage}
+                                        onChange={(e) => setNewAbility({ ...newAbility, damage: parseInt(e.target.value) })}
+                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                        min="0"
+                                    />
+                                </div>
+                            )}
+
+                            {newAbility.abilityType === 'heal' && (
+                                <div>
+                                    <label className="block text-sm text-neutral-400 mb-2">Cura</label>
+                                    <input
+                                        type="number"
+                                        value={newAbility.healing}
+                                        onChange={(e) => setNewAbility({ ...newAbility, healing: parseInt(e.target.value) })}
+                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                        min="0"
+                                    />
+                                </div>
+                            )}
+
+                            {newAbility.abilityType === 'buff' && (
+                                <div>
+                                    <label className="block text-sm text-neutral-400 mb-2">Valor do Buff</label>
+                                    <input
+                                        type="number"
+                                        value={newAbility.buffValue}
+                                        onChange={(e) => setNewAbility({ ...newAbility, buffValue: parseInt(e.target.value) })}
+                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                        min="0"
+                                    />
+                                </div>
+                            )}
+
+                            {newAbility.abilityType === 'debuff' && (
+                                <div>
+                                    <label className="block text-sm text-neutral-400 mb-2">Valor do Debuff</label>
+                                    <input
+                                        type="number"
+                                        value={newAbility.debuffValue}
+                                        onChange={(e) => setNewAbility({ ...newAbility, debuffValue: parseInt(e.target.value) })}
+                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                        min="0"
+                                    />
+                                </div>
+                            )}
+
+                            {newAbility.abilityType === 'protection' && (
+                                <div>
+                                    <label className="block text-sm text-neutral-400 mb-2">Valor da Proteção</label>
+                                    <input
+                                        type="number"
+                                        value={newAbility.protectionValue}
+                                        onChange={(e) => setNewAbility({ ...newAbility, protectionValue: parseInt(e.target.value) })}
+                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                        min="0"
+                                    />
+                                </div>
+                            )}
+
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowAbilityModal(false);
+                                        setSelectedCharacterForAbility(null);
+                                    }}
+                                    className="flex-1 px-4 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 font-semibold"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold"
+                                >
+                                    Criar Habilidade
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
