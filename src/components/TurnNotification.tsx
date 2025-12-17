@@ -8,13 +8,23 @@ interface TurnNotificationProps {
 
 export function TurnNotification({ isYourTurn, characterName }: TurnNotificationProps) {
     const [show, setShow] = useState(false);
-    const [audio] = useState(typeof window !== 'undefined' ? new Audio('/sounds/your-turn.mp3') : null);
+    const [prevTurn, setPrevTurn] = useState(false);
 
     useEffect(() => {
-        if (isYourTurn) {
+        // Só mostrar quando mudar de false para true
+        if (isYourTurn && !prevTurn) {
+            console.log('🔔 SUA VEZ!', characterName);
             setShow(true);
-            // Tocar som
-            audio?.play().catch(() => { });
+
+            // Tentar tocar som (opcional)
+            try {
+                const audio = new Audio('/sounds/your-turn.mp3');
+                audio.play().catch(() => {
+                    console.log('Som não disponível, usando apenas notificação visual');
+                });
+            } catch (e) {
+                console.log('Som não disponível');
+            }
 
             // Vibrar se disponível
             if (navigator.vibrate) {
@@ -23,9 +33,14 @@ export function TurnNotification({ isYourTurn, characterName }: TurnNotification
 
             // Esconder após 5 segundos
             const timer = setTimeout(() => setShow(false), 5000);
+
+            setPrevTurn(true);
             return () => clearTimeout(timer);
+        } else if (!isYourTurn) {
+            setPrevTurn(false);
+            setShow(false);
         }
-    }, [isYourTurn, audio]);
+    }, [isYourTurn, characterName, prevTurn]);
 
     if (!show || !isYourTurn) return null;
 

@@ -3,9 +3,6 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { DiceRoller } from "@/components/DiceRoller";
-import { TurnNotification } from "@/components/TurnNotification";
-import { AnimatedDice } from "@/components/AnimatedDice";
-import { CombatHistory } from "@/components/CombatHistory";
 
 interface Room {
     id: string;
@@ -51,6 +48,22 @@ interface Room {
             race: string | null;
         };
     }>;
+    encounters?: Array<{
+        id: string;
+        name: string;
+        isActive: boolean;
+        participants: Array<{
+            id: string;
+            name: string;
+            hp: number;
+            maxHp: number;
+            mana: number;
+            maxMana: number;
+            initiative: number;
+            isNPC: boolean;
+            statusEffects: any;
+        }>;
+    }>;
 }
 
 export default function PlayerPage() {
@@ -70,46 +83,46 @@ export default function PlayerPage() {
     const [showAttackModal, setShowAttackModal] = useState(false);
     const [attackTarget, setAttackTarget] = useState<any>(null);
     const [attackType, setAttackType] = useState<'melee' | 'ranged'>('melee');
+    const [diceRolled, setDiceRolled] = useState(false);
+    const [attackRoll, setAttackRoll] = useState<number | null>(null);
+    const [attackResult, setAttackResult] = useState<any>(null);
 
     useEffect(() => {
         loadRoom();
         loadMyCharacters();
 
-        // Atualizar a cada 3 segundos para ver mudanças de turno
+        // Atualizar a cada 3 segundos
         const interval = setInterval(loadRoom, 3000);
         return () => clearInterval(interval);
     }, [code]);
 
     useEffect(() => {
         if (room && room.userCharacters[selectedCharacter]) {
-            checkIfMyTurn();
+            checkCombatStatus();
         }
     }, [room, selectedCharacter]);
 
-    function checkIfMyTurn() {
+    function checkCombatStatus() {
         const currentChar = room?.userCharacters[selectedCharacter];
-        if (!currentChar) return;
+        if (!currentChar) {
+            setIsMyTurn(false);
+            return;
+        }
 
-        // Buscar encontro ativo
-        const activeEncounter = (room as any)?.encounters?.find((e: any) => e.isActive);
+        // Verificar se há combate ativo onde o jogador participa
+        const activeEncounter = room?.encounters?.find((e) => e.isActive);
         if (!activeEncounter) {
             setIsMyTurn(false);
             return;
         }
 
-        // Buscar participante do jogador
+        // Verificar se o jogador está neste encontro
         const myParticipant = activeEncounter.participants?.find(
-            (p: any) => p.name === currentChar.character.name && !p.isNPC
+            (p) => p.name === currentChar.character.name && !p.isNPC
         );
 
-        if (!myParticipant) {
-            setIsMyTurn(false);
-            return;
-        }
-
-        // Verificar se é o turno dele (assumindo que o GM controla o índice)
-        // Por enquanto, vamos permitir que o jogador role quando quiser durante combate ativo
-        setIsMyTurn(activeEncounter.isActive);
+        // Se o jogador está no encontro ativo, mostrar interface de combate
+        setIsMyTurn(!!myParticipant);
     }
 
     async function loadRoom() {
@@ -182,12 +195,6 @@ export default function PlayerPage() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950 text-neutral-100">
-            {/* Turn Notification */}
-            <TurnNotification
-                isYourTurn={isMyTurn}
-                characterName={currentCharacter?.character.name || ''}
-            />
-
             {/* Decorative background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute top-20 left-20 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl" />
@@ -329,42 +336,85 @@ export default function PlayerPage() {
                                 )}
                             </div>
 
-                            {/* Combat Section */}
-                            {isMyTurn && (
-                                <div className="bg-gradient-to-br from-red-900/20 to-orange-900/20 backdrop-blur-xl border-2 border-red-500/50 rounded-3xl p-6 shadow-2xl">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <span className="text-3xl animate-pulse">⚔️</span>
-                                        <div>
-                                            <h3 className="text-2xl font-bold text-red-400">Combate Ativo!</h3>
-                                            <p className="text-sm text-neutral-400">Role os dados para atacar</p>
+                            {/* Combat Interface - Só aparece quando há combate ativo */}
+                            {isMyTurn && (() => {
+                                const activeEncounter = room?.encounters?.find(e => e.isActive);
+                                if (!activeEncounter) return null;
+
+                                const currentChar = room.userCharacters[selectedCharacter];
+                                const myParticipant = activeEncounter.participants.find(
+                                    p => p.name === currentChar.character.name && !p.isNPC
+                                );
+                                const enemies = activeEncounter.participants.filter(p => p.isNPC);
+
+                                return (
+                                    <div className="bg-gradient-to-br from-red-900/20 to-orange-900/20 backdrop-blur-xl border-2 border-red-500/50 rounded-3xl p-6 shadow-2xl">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <span className="text-3xl animate-pulse">⚔️</span>
+                                            <div>
+                                                <h3 className="text-2xl font-bold text-red-400">Combate Ativo!</h3>
+                                                <p className="text-sm text-neutral-400">{activeEncounter.name}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Meus Stats de Combate */}
+                                        <div className="mb-4 p-3 bg-black/30 rounded-xl">
+                                            <div className="grid grid-cols-2 gap-2 text-sm">
+                                                <div>
+                                                    <span className="text-neutral-500">HP:</span>
+                                                    <span className="ml-2 font-bold text-red-400">{myParticipant?.hp}/{myParticipant?.maxHp}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-neutral-500">Mana:</span>
+                                                    <span className="ml-2 font-bold text-blue-400">{myParticipant?.mana}/{myParticipant?.maxMana}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-neutral-500">Força:</span>
+                                                    <span className="ml-2 font-bold">{currentChar.roomStats?.forca || 3}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-neutral-500">Destreza:</span>
+                                                    <span className="ml-2 font-bold">{currentChar.roomStats?.destreza || 3}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Inimigos Disponíveis */}
+                                        <div className="mb-4">
+                                            <h4 className="text-sm font-bold text-neutral-400 mb-2">Inimigos:</h4>
+                                            <div className="space-y-2">
+                                                {enemies.map(enemy => (
+                                                    <div key={enemy.id} className="p-3 bg-red-950/30 border border-red-500/30 rounded-xl">
+                                                        <div className="flex justify-between items-center">
+                                                            <div>
+                                                                <p className="font-bold">{enemy.name}</p>
+                                                                <p className="text-xs text-neutral-500">
+                                                                    HP: {enemy.hp}/{enemy.maxHp}
+                                                                </p>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setAttackTarget(enemy);
+                                                                    setShowAttackModal(true);
+                                                                }}
+                                                                className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-semibold transition-all"
+                                                            >
+                                                                🗡️ Atacar
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
+                                            <p className="text-xs text-yellow-300 text-center">
+                                                💡 Clique em "Atacar" para escolher tipo de ataque e rolar dados
+                                            </p>
                                         </div>
                                     </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <AnimatedDice
-                                            sides={20}
-                                            onRoll={(result) => {
-                                                console.log('Ataque rolado:', result);
-                                                // Aqui você pode adicionar lógica para processar o ataque
-                                            }}
-                                            label="🗡️ Ataque"
-                                        />
-                                        <AnimatedDice
-                                            sides={6}
-                                            onRoll={(result) => {
-                                                console.log('Dano rolado:', result);
-                                            }}
-                                            label="💥 Dano"
-                                        />
-                                    </div>
-
-                                    <div className="mt-4 p-3 bg-black/30 rounded-xl">
-                                        <p className="text-xs text-neutral-400 text-center">
-                                            💡 Role d20 para atacar, depois d6 para dano
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
+                                );
+                            })()}
 
                             {/* Dice Roller */}
                             <DiceRoller
@@ -434,6 +484,206 @@ export default function PlayerPage() {
                     </div>
                 ) : null}
             </main>
+
+
+
+            {/* Attack Modal - Jogador rola dados MANUALMENTE */}
+            {showAttackModal && attackTarget && (() => {
+                const currentChar = room.userCharacters[selectedCharacter];
+                const activeEncounter = room?.encounters?.find(e => e.isActive);
+                const myParticipant = activeEncounter?.participants.find(
+                    p => p.name === currentChar.character.name && !p.isNPC
+                );
+
+                const attackBonus = attackType === 'melee'
+                    ? (currentChar.roomStats?.forca || 3)
+                    : (currentChar.roomStats?.destreza || 3);
+
+                const targetDefense = 10 + (attackTarget.defesa || 3);
+
+                const handleRollDice = () => {
+                    const roll = Math.floor(Math.random() * 20) + 1;
+                    setAttackRoll(roll);
+                    setDiceRolled(true);
+
+                    const totalAttack = roll + attackBonus;
+                    const hit = totalAttack >= targetDefense || roll === 20;
+                    const isCritical = roll === 20;
+                    let damage = 0;
+
+                    if (hit) {
+                        damage = attackBonus;
+                        if (isCritical) damage *= 2;
+                    }
+
+                    setAttackResult({
+                        roll,
+                        totalAttack,
+                        hit,
+                        isCritical,
+                        damage,
+                        targetDefense
+                    });
+                };
+
+                const handleConfirmAttack = async () => {
+                    if (!activeEncounter || !myParticipant || !attackResult) return;
+
+                    try {
+                        const res = await fetch('/api/combat/attack', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                encounterId: activeEncounter.id,
+                                attackerId: myParticipant.id,
+                                targetId: attackTarget.id,
+                                attackType
+                            })
+                        });
+
+                        if (res.ok) {
+                            setShowAttackModal(false);
+                            setAttackTarget(null);
+                            setDiceRolled(false);
+                            setAttackRoll(null);
+                            setAttackResult(null);
+                            loadRoom();
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        alert('Erro ao atacar');
+                    }
+                };
+
+                return (
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-lg w-full">
+                            <h2 className="text-2xl font-bold mb-6">Atacar {attackTarget.name}</h2>
+
+                            {/* Escolher tipo de ataque */}
+                            {!diceRolled && (
+                                <div className="mb-6">
+                                    <label className="block text-sm font-semibold mb-2">Tipo de Ataque:</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            onClick={() => setAttackType('melee')}
+                                            className={`p-3 rounded-xl border-2 transition-all ${attackType === 'melee'
+                                                    ? 'border-red-500 bg-red-500/20'
+                                                    : 'border-neutral-700 bg-neutral-800/50 hover:border-neutral-600'
+                                                }`}
+                                        >
+                                            <div className="text-2xl mb-1">🗡️</div>
+                                            <div className="text-sm font-semibold">Corpo a Corpo</div>
+                                            <div className="text-xs text-neutral-500">Força: +{currentChar.roomStats?.forca || 3}</div>
+                                        </button>
+                                        <button
+                                            onClick={() => setAttackType('ranged')}
+                                            className={`p-3 rounded-xl border-2 transition-all ${attackType === 'ranged'
+                                                    ? 'border-blue-500 bg-blue-500/20'
+                                                    : 'border-neutral-700 bg-neutral-800/50 hover:border-neutral-600'
+                                                }`}
+                                        >
+                                            <div className="text-2xl mb-1">🏹</div>
+                                            <div className="text-sm font-semibold">À Distância</div>
+                                            <div className="text-xs text-neutral-500">Destreza: +{currentChar.roomStats?.destreza || 3}</div>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Info do alvo */}
+                            <div className="mb-6 p-4 bg-red-950/30 border border-red-500/30 rounded-xl">
+                                <p className="text-sm text-neutral-400 mb-1">Alvo:</p>
+                                <p className="font-bold text-lg">{attackTarget.name}</p>
+                                <div className="flex justify-between text-sm mt-2">
+                                    <span className="text-neutral-500">HP: {attackTarget.hp}/{attackTarget.maxHp}</span>
+                                    <span className="text-neutral-500">Defesa: {targetDefense}</span>
+                                </div>
+                            </div>
+
+                            {/* Resultado da rolagem */}
+                            {diceRolled && attackResult && (
+                                <div className={`mb-6 p-6 rounded-xl border-2 ${attackResult.isCritical ? 'bg-yellow-500/20 border-yellow-500' :
+                                        attackResult.hit ? 'bg-green-500/20 border-green-500' :
+                                            'bg-red-500/20 border-red-500'
+                                    }`}>
+                                    <div className="text-center mb-4">
+                                        <div className="text-6xl mb-2">
+                                            {attackResult.isCritical ? '💥' : attackResult.hit ? '✅' : '❌'}
+                                        </div>
+                                        <p className="text-2xl font-bold">
+                                            {attackResult.isCritical ? 'CRÍTICO!' : attackResult.hit ? 'ACERTOU!' : 'ERROU!'}
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between p-2 bg-black/20 rounded">
+                                            <span>🎲 Dado (d20):</span>
+                                            <span className="font-bold">{attackResult.roll}</span>
+                                        </div>
+                                        <div className="flex justify-between p-2 bg-black/20 rounded">
+                                            <span>➕ Bônus ({attackType === 'melee' ? 'Força' : 'Destreza'}):</span>
+                                            <span className="font-bold">+{attackBonus}</span>
+                                        </div>
+                                        <div className="flex justify-between p-2 bg-black/30 rounded font-bold">
+                                            <span>= Total:</span>
+                                            <span>{attackResult.totalAttack}</span>
+                                        </div>
+                                        <div className="flex justify-between p-2 bg-black/20 rounded">
+                                            <span>🛡️ Defesa do Alvo:</span>
+                                            <span className="font-bold">{targetDefense}</span>
+                                        </div>
+                                        {attackResult.hit && (
+                                            <>
+                                                <div className="border-t border-white/10 my-2"></div>
+                                                <div className="flex justify-between p-2 bg-red-500/30 rounded font-bold text-lg">
+                                                    <span>💔 Dano:</span>
+                                                    <span>{attackResult.damage} HP</span>
+                                                </div>
+                                                {attackResult.isCritical && (
+                                                    <p className="text-xs text-yellow-300 text-center">
+                                                        Dano dobrado por crítico!
+                                                    </p>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Botões */}
+                            {!diceRolled ? (
+                                <button
+                                    onClick={handleRollDice}
+                                    className="w-full px-6 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold text-lg transition-all shadow-lg"
+                                >
+                                    🎲 ROLAR DADOS!
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleConfirmAttack}
+                                    className="w-full px-6 py-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-lg transition-all"
+                                >
+                                    ⚔️ CONFIRMAR ATAQUE
+                                </button>
+                            )}
+
+                            <button
+                                onClick={() => {
+                                    setShowAttackModal(false);
+                                    setAttackTarget(null);
+                                    setDiceRolled(false);
+                                    setAttackRoll(null);
+                                    setAttackResult(null);
+                                }}
+                                className="w-full mt-3 px-4 py-2 rounded-xl bg-neutral-800/50 hover:bg-neutral-700/50 transition-all"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Add Character Modal */}
             {showAddCharacter && (

@@ -11,7 +11,6 @@ interface AnimatedDiceProps {
 export function AnimatedDice({ sides, onRoll, disabled, label }: AnimatedDiceProps) {
     const [rolling, setRolling] = useState(false);
     const [result, setResult] = useState<number | null>(null);
-    const [audio] = useState(typeof window !== 'undefined' ? new Audio('/sounds/dice-roll.mp3') : null);
 
     const roll = () => {
         if (rolling || disabled) return;
@@ -19,8 +18,13 @@ export function AnimatedDice({ sides, onRoll, disabled, label }: AnimatedDicePro
         setRolling(true);
         setResult(null);
 
-        // Tocar som
-        audio?.play().catch(() => { });
+        // Tocar som (opcional)
+        try {
+            const audio = new Audio('/sounds/dice-roll.mp3');
+            audio.play().catch(() => { });
+        } catch (e) {
+            // Som não disponível
+        }
 
         // Animação de rolagem (números aleatórios rápidos)
         let count = 0;

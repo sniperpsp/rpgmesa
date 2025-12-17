@@ -127,6 +127,13 @@ export default function GMPage() {
     const [showDiceRoller, setShowDiceRoller] = useState(false);
     const [diceResult, setDiceResult] = useState<number | null>(null);
 
+    // New Encounter Modal
+    const [showNewEncounterModal, setShowNewEncounterModal] = useState(false);
+    const [newEncounter, setNewEncounter] = useState({
+        name: '',
+        monsters: [{ name: '', hp: 20, forca: 3, destreza: 3, defesa: 3 }]
+    });
+
     useEffect(() => {
         loadRoom();
     }, [code]);
