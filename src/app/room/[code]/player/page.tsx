@@ -32,6 +32,11 @@ interface Room {
             inteligencia: number;
             defesa: number;
             velocidade: number;
+            // XP System
+            level: number;
+            xp: number;
+            xpToNextLevel: number;
+            statPoints: number;
         } | null;
         roomAbilities: Array<{
             id: string;
@@ -95,6 +100,10 @@ export default function PlayerPage() {
     const [selectedAbility, setSelectedAbility] = useState<any>(null);
     const [abilityTarget, setAbilityTarget] = useState<any>(null);
     const [isAttacking, setIsAttacking] = useState(false);
+
+    // Stat distribution states
+    const [showStatModal, setShowStatModal] = useState(false);
+    const [isDistributing, setIsDistributing] = useState(false);
 
     useEffect(() => {
         loadRoom();
@@ -207,6 +216,37 @@ export default function PlayerPage() {
         } catch (e) {
             console.error("Erro ao carregar sala:", e);
             router.push("/lobby");
+        }
+    }
+
+    async function distributeStat(stat: string) {
+        if (!room?.userCharacters[selectedCharacter]?.id) return;
+
+        setIsDistributing(true);
+        try {
+            const res = await fetch('/api/xp/distribute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    characterRoomId: room.userCharacters[selectedCharacter].id,
+                    stat,
+                    points: 1
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                console.log('✅ Ponto distribuído:', data);
+                loadRoom(); // Recarregar para atualizar stats
+            } else {
+                const err = await res.json();
+                alert(err.error || 'Erro ao distribuir ponto');
+            }
+        } catch (e) {
+            console.error('Erro ao distribuir ponto:', e);
+            alert('Erro ao distribuir ponto');
+        } finally {
+            setIsDistributing(false);
         }
     }
 
@@ -398,26 +438,94 @@ export default function PlayerPage() {
                                                 </div>
                                             </div>
 
+                                            {/* XP Bar and Level */}
+                                            <div className="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 rounded-xl p-4 border border-purple-500/30">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="bg-purple-600 text-white px-2 py-1 rounded-lg text-sm font-bold">
+                                                            Lv.{currentCharacter.roomStats?.level || 1}
+                                                        </span>
+                                                        <span className="text-neutral-400 text-sm">Experiência</span>
+                                                    </div>
+                                                    <span className="font-bold">
+                                                        {currentCharacter.roomStats?.xp || 0} / {currentCharacter.roomStats?.xpToNextLevel || 100} XP
+                                                    </span>
+                                                </div>
+                                                <div className="w-full bg-neutral-700/50 rounded-full h-3">
+                                                    <div
+                                                        className="bg-gradient-to-r from-purple-500 to-indigo-500 h-3 rounded-full transition-all duration-500"
+                                                        style={{ width: `${Math.min(100, ((currentCharacter.roomStats?.xp || 0) / (currentCharacter.roomStats?.xpToNextLevel || 100)) * 100)}%` }}
+                                                    />
+                                                </div>
+
+                                                {/* Stat Points Available */}
+                                                {(currentCharacter.roomStats?.statPoints || 0) > 0 && (
+                                                    <button
+                                                        onClick={() => setShowStatModal(true)}
+                                                        className="mt-3 w-full p-3 bg-yellow-500/20 border border-yellow-500/50 rounded-xl animate-pulse hover:bg-yellow-500/30 transition-all"
+                                                    >
+                                                        <p className="text-yellow-300 text-center font-bold">
+                                                            ⭐ {currentCharacter.roomStats?.statPoints} Pontos de Atributo Disponíveis! (Clique para distribuir)
+                                                        </p>
+                                                    </button>
+                                                )}
+                                            </div>
+
                                             <div className="grid grid-cols-2 gap-3">
-                                                <div className="bg-neutral-800/50 rounded-xl p-3 text-center">
+                                                <div className="bg-neutral-800/50 rounded-xl p-3 text-center relative group">
                                                     <p className="text-neutral-400 text-xs mb-1">Força</p>
                                                     <p className="font-bold text-lg">{currentCharacter.roomStats!.forca}</p>
+                                                    {(currentCharacter.roomStats?.statPoints || 0) > 0 && (
+                                                        <button
+                                                            onClick={() => distributeStat('forca')}
+                                                            disabled={isDistributing}
+                                                            className="absolute top-1 right-1 w-6 h-6 bg-emerald-600 hover:bg-emerald-500 rounded-full text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                                                        >+</button>
+                                                    )}
                                                 </div>
-                                                <div className="bg-neutral-800/50 rounded-xl p-3 text-center">
+                                                <div className="bg-neutral-800/50 rounded-xl p-3 text-center relative group">
                                                     <p className="text-neutral-400 text-xs mb-1">Destreza</p>
                                                     <p className="font-bold text-lg">{currentCharacter.roomStats!.destreza}</p>
+                                                    {(currentCharacter.roomStats?.statPoints || 0) > 0 && (
+                                                        <button
+                                                            onClick={() => distributeStat('destreza')}
+                                                            disabled={isDistributing}
+                                                            className="absolute top-1 right-1 w-6 h-6 bg-emerald-600 hover:bg-emerald-500 rounded-full text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                                                        >+</button>
+                                                    )}
                                                 </div>
-                                                <div className="bg-neutral-800/50 rounded-xl p-3 text-center">
+                                                <div className="bg-neutral-800/50 rounded-xl p-3 text-center relative group">
                                                     <p className="text-neutral-400 text-xs mb-1">Inteligência</p>
                                                     <p className="font-bold text-lg">{currentCharacter.roomStats!.inteligencia}</p>
+                                                    {(currentCharacter.roomStats?.statPoints || 0) > 0 && (
+                                                        <button
+                                                            onClick={() => distributeStat('inteligencia')}
+                                                            disabled={isDistributing}
+                                                            className="absolute top-1 right-1 w-6 h-6 bg-emerald-600 hover:bg-emerald-500 rounded-full text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                                                        >+</button>
+                                                    )}
                                                 </div>
-                                                <div className="bg-neutral-800/50 rounded-xl p-3 text-center">
+                                                <div className="bg-neutral-800/50 rounded-xl p-3 text-center relative group">
                                                     <p className="text-neutral-400 text-xs mb-1">Defesa</p>
                                                     <p className="font-bold text-lg">{currentCharacter.roomStats!.defesa}</p>
+                                                    {(currentCharacter.roomStats?.statPoints || 0) > 0 && (
+                                                        <button
+                                                            onClick={() => distributeStat('defesa')}
+                                                            disabled={isDistributing}
+                                                            className="absolute top-1 right-1 w-6 h-6 bg-emerald-600 hover:bg-emerald-500 rounded-full text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                                                        >+</button>
+                                                    )}
                                                 </div>
-                                                <div className="bg-neutral-800/50 rounded-xl p-3 text-center col-span-2">
+                                                <div className="bg-neutral-800/50 rounded-xl p-3 text-center col-span-2 relative group">
                                                     <p className="text-neutral-400 text-xs mb-1">Velocidade</p>
                                                     <p className="font-bold text-lg">{currentCharacter.roomStats!.velocidade}</p>
+                                                    {(currentCharacter.roomStats?.statPoints || 0) > 0 && (
+                                                        <button
+                                                            onClick={() => distributeStat('velocidade')}
+                                                            disabled={isDistributing}
+                                                            className="absolute top-1 right-1 w-6 h-6 bg-emerald-600 hover:bg-emerald-500 rounded-full text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                                                        >+</button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -1175,6 +1283,55 @@ export default function PlayerPage() {
                     </div>
                 )
             }
-        </div >
+
+            {/* Modal de Distribuição de Pontos */}
+            {showStatModal && room?.userCharacters[selectedCharacter]?.roomStats && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+                        <h2 className="text-2xl font-bold mb-2 text-center">⭐ Distribuir Pontos</h2>
+                        <p className="text-neutral-400 text-center mb-6">
+                            Você tem <span className="text-yellow-400 font-bold">{room!.userCharacters[selectedCharacter].roomStats?.statPoints || 0}</span> pontos disponíveis
+                        </p>
+
+                        <div className="space-y-3">
+                            {[
+                                { key: 'hp', label: 'HP', icon: '❤️', desc: '+5 HP por ponto', color: 'red' },
+                                { key: 'mana', label: 'Mana', icon: '💧', desc: '+3 Mana por ponto', color: 'blue' },
+                                { key: 'forca', label: 'Força', icon: '💪', desc: 'Dano corpo-a-corpo', color: 'orange' },
+                                { key: 'destreza', label: 'Destreza', icon: '🏹', desc: 'Dano à distância', color: 'green' },
+                                { key: 'inteligencia', label: 'Inteligência', icon: '🧠', desc: 'Poder mágico', color: 'purple' },
+                                { key: 'defesa', label: 'Defesa', icon: '🛡️', desc: 'Reduz dano recebido', color: 'neutral' },
+                                { key: 'velocidade', label: 'Velocidade', icon: '⚡', desc: 'Ordem de iniciativa', color: 'cyan' },
+                            ].map((stat) => (
+                                <button
+                                    key={stat.key}
+                                    onClick={() => distributeStat(stat.key)}
+                                    disabled={isDistributing || (room!.userCharacters[selectedCharacter].roomStats?.statPoints || 0) === 0}
+                                    className={`w-full p-4 bg-${stat.color}-900/30 border border-${stat.color}-500/30 rounded-xl hover:bg-${stat.color}-900/50 transition-all disabled:opacity-50 flex items-center justify-between`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-2xl">{stat.icon}</span>
+                                        <div className="text-left">
+                                            <p className="font-bold">{stat.label}</p>
+                                            <p className="text-xs text-neutral-400">{stat.desc}</p>
+                                        </div>
+                                    </div>
+                                    <span className="font-bold text-lg">
+                                        {(room!.userCharacters[selectedCharacter].roomStats as any)?.[stat.key] || 0}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={() => setShowStatModal(false)}
+                            className="mt-6 w-full px-4 py-3 rounded-xl bg-neutral-800/50 hover:bg-neutral-700/50 transition-all"
+                        >
+                            Fechar
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 }

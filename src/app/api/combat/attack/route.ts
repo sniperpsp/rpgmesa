@@ -108,10 +108,70 @@ export async function POST(request: Request) {
             // Aplicar dano
             newHp = Math.max(0, target.hp - damage);
 
+            // Rastrear dano recebido (para distribuição de XP proporcional)
+            let damageReceived = (target as any).damageReceived || {};
+            if (!attacker.isNPC) {
+                // Encontrar o characterRoomId do atacante
+                const attackerCharRoom = encounter.room.characterRooms.find(
+                    cr => cr.character.name === attacker.name
+                );
+                if (attackerCharRoom) {
+                    const attackerKey = attackerCharRoom.id;
+                    damageReceived[attackerKey] = (damageReceived[attackerKey] || 0) + damage;
+                }
+            }
+
             await prisma.encounterParticipant.update({
                 where: { id: targetId },
-                data: { hp: newHp }
+                data: {
+                    hp: newHp,
+                    damageReceived: damageReceived
+                }
             });
+
+            // Se o NPC morreu (HP <= 0), distribuir XP
+            if (newHp <= 0 && target.isNPC) {
+                const npcLevel = (target as any).level || 1;
+                const xpReward = (target as any).xpReward || npcLevel * npcLevel * 10;
+
+                // Calcular XP proporcional para cada jogador que causou dano
+                const totalDamage = Object.values(damageReceived).reduce((sum: number, d: any) => sum + d, 0) as number;
+
+                for (const [charRoomId, dmg] of Object.entries(damageReceived)) {
+                    const proportion = (dmg as number) / totalDamage;
+                    const xpGrant = Math.floor(xpReward * proportion);
+
+                    // Buscar stats do jogador e aplicar XP
+                    const playerStats = await prisma.characterRoomStats.findFirst({
+                        where: { characterRoomId: charRoomId }
+                    });
+
+                    if (playerStats && xpGrant > 0) {
+                        let newXp = playerStats.xp + xpGrant;
+                        let newLevel = playerStats.level;
+                        let newXpToNext = playerStats.xpToNextLevel;
+                        let newStatPoints = playerStats.statPoints;
+
+                        // Check for level up
+                        while (newXp >= newXpToNext) {
+                            newXp -= newXpToNext;
+                            newLevel++;
+                            newXpToNext = newLevel * newLevel * 100;
+                            newStatPoints += 3;
+                        }
+
+                        await prisma.characterRoomStats.update({
+                            where: { id: playerStats.id },
+                            data: {
+                                xp: newXp,
+                                level: newLevel,
+                                xpToNextLevel: newXpToNext,
+                                statPoints: newStatPoints
+                            }
+                        });
+                    }
+                }
+            }
         }
 
         const result: AttackResult = {
