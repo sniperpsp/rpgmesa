@@ -204,6 +204,7 @@ model Encounter {
   participants EncounterParticipant[]
 
   @@index([roomId])
+  @@index([roomId, isActive])
   @@map("encounters")
 }
 

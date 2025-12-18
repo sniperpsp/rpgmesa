@@ -98,10 +98,50 @@ export default function PlayerPage() {
         loadRoom();
         loadMyCharacters();
 
-        // Atualizar a cada 3 segundos
-        const interval = setInterval(loadRoom, 3000);
-        return () => clearInterval(interval);
+        // Polling LEVE para combat sync - a cada 5 segundos
+        const combatInterval = setInterval(loadCombatStatus, 5000);
+
+        // Reload completo da sala a cada 30 segundos
+        const fullReloadInterval = setInterval(loadRoom, 30000);
+
+        return () => {
+            clearInterval(combatInterval);
+            clearInterval(fullReloadInterval);
+        };
     }, [code]);
+
+    // Função para polling LEVE - apenas status de combate
+    async function loadCombatStatus() {
+        try {
+            const res = await fetch(`/api/rooms/${code}/status`);
+            if (res.ok) {
+                const data = await res.json();
+
+                // Atualizar apenas os dados de combate se houver encontro ativo
+                if (data.activeEncounter && room) {
+                    setRoom((prev: any) => {
+                        if (!prev) return prev;
+
+                        // Atualizar encounters com dados frescos
+                        const updatedEncounters = prev.encounters.map((enc: any) => {
+                            if (enc.id === data.activeEncounter.id) {
+                                return {
+                                    ...enc,
+                                    currentTurnIndex: data.activeEncounter.currentTurnIndex,
+                                    participants: data.activeEncounter.participants
+                                };
+                            }
+                            return enc;
+                        });
+
+                        return { ...prev, encounters: updatedEncounters };
+                    });
+                }
+            }
+        } catch (e) {
+            console.error("Erro ao buscar status:", e);
+        }
+    }
 
     useEffect(() => {
         if (room && room.userCharacters[selectedCharacter]) {
