@@ -194,34 +194,48 @@ export default function GMPage() {
         }
     }
 
-    async function loadMonsterTemplates() {
+    async function loadMonsterTemplates(forceRefresh = false) {
         try {
-            // Check localStorage cache first
             const cacheKey = 'monster_templates_cache';
             const cacheExpiry = 'monster_templates_cache_expiry';
-            const cached = localStorage.getItem(cacheKey);
-            const expiry = localStorage.getItem(cacheExpiry);
 
-            // Se cache válido (5 minutos), usar cache
-            if (cached && expiry && Date.now() < parseInt(expiry)) {
-                console.log('📦 Usando templates do cache');
-                setAvailableTemplates(JSON.parse(cached));
-                return;
+            // Se não forçar refresh, checar cache
+            if (!forceRefresh) {
+                const cached = localStorage.getItem(cacheKey);
+                const expiry = localStorage.getItem(cacheExpiry);
+
+                if (cached && expiry && Date.now() < parseInt(expiry)) {
+                    const templates = JSON.parse(cached);
+                    if (templates.length > 0) {
+                        console.log('📦 Usando templates do cache:', templates.length, 'templates');
+                        setAvailableTemplates(templates);
+                        return;
+                    }
+                }
             }
 
-            console.log('🌐 Buscando templates da API');
+            // Limpar cache antigo
+            localStorage.removeItem(cacheKey);
+            localStorage.removeItem(cacheExpiry);
+
+            console.log('🌐 Buscando templates da API...');
             const res = await fetch('/api/templates/monsters');
             if (res.ok) {
                 const data = await res.json();
-                const templates = data.templates || [];
+                const templates = data.monsters || [];
+                console.log('✅ Templates carregados:', templates.length, 'templates');
                 setAvailableTemplates(templates);
 
-                // Salvar no cache por 5 minutos
-                localStorage.setItem(cacheKey, JSON.stringify(templates));
-                localStorage.setItem(cacheExpiry, String(Date.now() + 5 * 60 * 1000));
+                // Salvar no cache por 5 minutos (apenas se tiver dados)
+                if (templates.length > 0) {
+                    localStorage.setItem(cacheKey, JSON.stringify(templates));
+                    localStorage.setItem(cacheExpiry, String(Date.now() + 5 * 60 * 1000));
+                }
+            } else {
+                console.error('❌ Erro na API:', res.status);
             }
         } catch (e) {
-            console.error('Erro ao carregar templates:', e);
+            console.error('❌ Erro ao carregar templates:', e);
         }
     }
 
@@ -1215,7 +1229,7 @@ export default function GMPage() {
                             {/* Carregar Templates */}
                             {availableTemplates.length === 0 && (
                                 <button
-                                    onClick={loadMonsterTemplates}
+                                    onClick={() => loadMonsterTemplates(true)}
                                     className="w-full px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold"
                                 >
                                     📚 Carregar Templates de Monstros
