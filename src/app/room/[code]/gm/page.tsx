@@ -196,10 +196,29 @@ export default function GMPage() {
 
     async function loadMonsterTemplates() {
         try {
-            const res = await fetch('/api/templates/monster');
+            // Check localStorage cache first
+            const cacheKey = 'monster_templates_cache';
+            const cacheExpiry = 'monster_templates_cache_expiry';
+            const cached = localStorage.getItem(cacheKey);
+            const expiry = localStorage.getItem(cacheExpiry);
+
+            // Se cache válido (5 minutos), usar cache
+            if (cached && expiry && Date.now() < parseInt(expiry)) {
+                console.log('📦 Usando templates do cache');
+                setAvailableTemplates(JSON.parse(cached));
+                return;
+            }
+
+            console.log('🌐 Buscando templates da API');
+            const res = await fetch('/api/templates/monsters');
             if (res.ok) {
                 const data = await res.json();
-                setAvailableTemplates(data.templates || []);
+                const templates = data.templates || [];
+                setAvailableTemplates(templates);
+
+                // Salvar no cache por 5 minutos
+                localStorage.setItem(cacheKey, JSON.stringify(templates));
+                localStorage.setItem(cacheExpiry, String(Date.now() + 5 * 60 * 1000));
             }
         } catch (e) {
             console.error('Erro ao carregar templates:', e);

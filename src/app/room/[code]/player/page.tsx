@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { DiceRoller } from "@/components/DiceRoller";
+import { TurnNotification } from "@/components/TurnNotification";
 
 interface Room {
     id: string;
@@ -93,6 +94,7 @@ export default function PlayerPage() {
     const [showAbilityModal, setShowAbilityModal] = useState(false);
     const [selectedAbility, setSelectedAbility] = useState<any>(null);
     const [abilityTarget, setAbilityTarget] = useState<any>(null);
+    const [isAttacking, setIsAttacking] = useState(false);
 
     useEffect(() => {
         loadRoom();
@@ -256,11 +258,18 @@ export default function PlayerPage() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950 text-neutral-100">
+            {/* Turn Notification - alerta sonoro e visual */}
+            <TurnNotification
+                isYourTurn={isMyTurn}
+                characterName={currentCharacter?.character?.name || 'Herói'}
+            />
+
             {/* Decorative background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute top-20 left-20 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl" />
                 <div className="absolute bottom-20 right-20 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl" />
             </div>
+
 
             {/* Header */}
             <header className="relative border-b border-neutral-800/50 bg-neutral-900/50 backdrop-blur-xl">
@@ -723,6 +732,7 @@ export default function PlayerPage() {
                     const handleConfirmAttack = async () => {
                         if (!activeEncounter || !myParticipant || !attackResult) return;
 
+                        setIsAttacking(true);
                         try {
                             let res;
 
@@ -771,6 +781,8 @@ export default function PlayerPage() {
                         } catch (e) {
                             console.error(e);
                             alert('Erro ao atacar');
+                        } finally {
+                            setIsAttacking(false);
                         }
                     };
 
@@ -942,9 +954,20 @@ export default function PlayerPage() {
                                 {diceRolled && (
                                     <button
                                         onClick={handleConfirmAttack}
-                                        className="w-full px-6 py-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-lg transition-all"
+                                        disabled={isAttacking}
+                                        className="w-full px-6 py-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        {attackType === 'magic' ? '🔮 LANÇAR MAGIA' : '⚔️ CONFIRMAR ATAQUE'}
+                                        {isAttacking ? (
+                                            <span className="flex items-center justify-center gap-2">
+                                                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                                </svg>
+                                                Atacando...
+                                            </span>
+                                        ) : (
+                                            attackType === 'magic' ? '🔮 LANÇAR MAGIA' : '⚔️ CONFIRMAR ATAQUE'
+                                        )}
                                     </button>
                                 )}
 
