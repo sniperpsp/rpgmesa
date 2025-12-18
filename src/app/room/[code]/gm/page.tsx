@@ -134,6 +134,12 @@ export default function GMPage() {
         monsters: [{ name: '', hp: 20, forca: 3, destreza: 3, defesa: 3 }]
     });
 
+    // Manual Encounter Modal
+    const [showManualEncounterModal, setShowManualEncounterModal] = useState(false);
+    const [manualEncounterName, setManualEncounterName] = useState('');
+    const [selectedMonsters, setSelectedMonsters] = useState<Array<{ templateId: string; name: string; count: number }>>([]);
+    const [availableTemplates, setAvailableTemplates] = useState<any[]>([]);
+
     // Ability Modal States
     const [showAbilityModal, setShowAbilityModal] = useState(false);
     const [selectedCharacterForAbility, setSelectedCharacterForAbility] = useState<any>(null);
@@ -185,6 +191,52 @@ export default function GMPage() {
         } catch (e) {
             console.error("Erro ao carregar sala:", e);
             router.push("/lobby");
+        }
+    }
+
+    async function loadMonsterTemplates() {
+        try {
+            const res = await fetch('/api/templates/monster');
+            if (res.ok) {
+                const data = await res.json();
+                setAvailableTemplates(data.templates || []);
+            }
+        } catch (e) {
+            console.error('Erro ao carregar templates:', e);
+        }
+    }
+
+    async function handleCreateManualEncounter() {
+        if (!manualEncounterName.trim() || selectedMonsters.length === 0) {
+            alert('Preencha o nome e adicione pelo menos um monstro!');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/encounters/create-manual', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    roomId: room?.id,
+                    name: manualEncounterName,
+                    monsters: selectedMonsters,
+                    addPlayers: true
+                })
+            });
+
+            if (res.ok) {
+                setShowManualEncounterModal(false);
+                setManualEncounterName('');
+                setSelectedMonsters([]);
+                loadRoom();
+                console.log('✅ Encontro manual criado com sucesso!');
+            } else {
+                const error = await res.json();
+                alert(error.error || 'Erro ao criar encontro');
+            }
+        } catch (e) {
+            console.error('Erro ao criar encontro manual:', e);
+            alert('Erro ao criar encontro');
         }
     }
 
@@ -478,7 +530,7 @@ export default function GMPage() {
                         <button onClick={() => setActiveTab('characters')} className={`px-4 py-2 rounded-xl transition-all whitespace-nowrap ${activeTab === 'characters' ? 'bg-purple-600' : 'bg-neutral-800/50'}`}>Personagens</button>
                         <button onClick={() => setActiveTab('encounters')} className={`px-4 py-2 rounded-xl transition-all whitespace-nowrap ${activeTab === 'encounters' ? 'bg-purple-600' : 'bg-neutral-800/50'}`}>Encontros</button>
                         <button onClick={() => setActiveTab('stories')} className={`px-4 py-2 rounded-xl transition-all whitespace-nowrap ${activeTab === 'stories' ? 'bg-purple-600' : 'bg-neutral-800/50'}`}>História (IA)</button>
-                        <button onClick={() => router.push('/templates')} className="px-4 py-2 rounded-xl transition-all whitespace-nowrap bg-neutral-800/50 hover:bg-neutral-700/50">📚 Templates</button>
+                        <button onClick={() => window.open('/templates', '_blank')} className="px-4 py-2 rounded-xl transition-all whitespace-nowrap bg-neutral-800/50 hover:bg-neutral-700/50">📚 Templates</button>
                     </div>
                 </div>
             </header>
@@ -695,6 +747,16 @@ export default function GMPage() {
                 {/* ENCOUNTERS */}
                 {activeTab === 'encounters' && (
                     <div className="space-y-6">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-2xl font-bold">Encontros de Combate</h2>
+                            <button
+                                onClick={() => setShowManualEncounterModal(true)}
+                                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold transition-all shadow-lg shadow-red-500/25"
+                            >
+                                ⚔️ Criar Encontro Manual
+                            </button>
+                        </div>
+
                         {room.encounters.length === 0 ? (
                             <div className="bg-neutral-900/50 backdrop-blur-xl border border-neutral-800/50 rounded-3xl p-12 text-center">
                                 <p className="text-neutral-500 text-lg">Nenhum encontro criado ainda.</p>
@@ -1070,7 +1132,13 @@ export default function GMPage() {
                                                                 </button>
                                                             </div>
                                                             {scene.imageUrl && (
-                                                                <img src={scene.imageUrl} className="w-full max-w-lg rounded-xl shadow-lg border border-neutral-700/50 mt-2" />
+                                                                <img
+                                                                    src={scene.imageUrl}
+                                                                    className="w-full max-w-lg rounded-xl shadow-lg border border-neutral-700/50 mt-2 cursor-pointer hover:opacity-80 transition-opacity"
+                                                                    onClick={() => window.open(scene.imageUrl!, '_blank')}
+                                                                    title="Clique para abrir em nova janela"
+                                                                    alt="Imagem da cena"
+                                                                />
                                                             )}
                                                         </div>
                                                     ))}
@@ -1106,6 +1174,157 @@ export default function GMPage() {
             </main>
 
             {/* Modals */}
+            {/* Manual Encounter Modal */}
+            {showManualEncounterModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+                        <h2 className="text-2xl font-bold mb-6">⚔️ Criar Encontro Manual</h2>
+
+                        <div className="space-y-6">
+                            {/* Nome do Encontro */}
+                            <div>
+                                <label className="block text-sm font-semibold text-neutral-300 mb-2">Nome do Encontro</label>
+                                <input
+                                    type="text"
+                                    value={manualEncounterName}
+                                    onChange={(e) => setManualEncounterName(e.target.value)}
+                                    className="w-full px-4 py-3 bg-black/40 border border-neutral-700 rounded-xl text-neutral-100"
+                                    placeholder="Ex: Emboscada de Goblins"
+                                />
+                            </div>
+
+                            {/* Carregar Templates */}
+                            {availableTemplates.length === 0 && (
+                                <button
+                                    onClick={loadMonsterTemplates}
+                                    className="w-full px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold"
+                                >
+                                    📚 Carregar Templates de Monstros
+                                </button>
+                            )}
+
+                            {/* Lista de Templates */}
+                            {availableTemplates.length > 0 && (
+                                <div>
+                                    <label className="block text-sm font-semibold text-neutral-300 mb-2">Selecionar Monstros</label>
+                                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                                        {availableTemplates.map((template) => {
+                                            const selected = selectedMonsters.find(m => m.templateId === template.id);
+                                            return (
+                                                <div key={template.id} className="flex items-center gap-3 p-3 bg-black/40 border border-neutral-700 rounded-xl">
+                                                    <div className="flex-1">
+                                                        <p className="font-bold">{template.name}</p>
+                                                        <p className="text-xs text-neutral-500">
+                                                            HP: {template.hp} | Força: {template.forca} | Destreza: {template.destreza}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {selected ? (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedMonsters(prev =>
+                                                                            prev.map(m =>
+                                                                                m.templateId === template.id
+                                                                                    ? { ...m, count: Math.max(1, m.count - 1) }
+                                                                                    : m
+                                                                            )
+                                                                        );
+                                                                    }}
+                                                                    className="px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-sm font-bold"
+                                                                >
+                                                                    -
+                                                                </button>
+                                                                <span className="w-8 text-center font-bold">{selected.count}</span>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedMonsters(prev =>
+                                                                            prev.map(m =>
+                                                                                m.templateId === template.id
+                                                                                    ? { ...m, count: m.count + 1 }
+                                                                                    : m
+                                                                            )
+                                                                        );
+                                                                    }}
+                                                                    className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-sm font-bold"
+                                                                >
+                                                                    +
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedMonsters(prev =>
+                                                                            prev.filter(m => m.templateId !== template.id)
+                                                                        );
+                                                                    }}
+                                                                    className="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 rounded text-sm"
+                                                                >
+                                                                    ✕
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedMonsters(prev => [
+                                                                        ...prev,
+                                                                        { templateId: template.id, name: template.name, count: 1 }
+                                                                    ]);
+                                                                }}
+                                                                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-sm font-semibold"
+                                                            >
+                                                                + Adicionar
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Resumo */}
+                            {selectedMonsters.length > 0 && (
+                                <div className="p-4 bg-emerald-900/20 border border-emerald-500/30 rounded-xl">
+                                    <p className="text-sm font-semibold text-emerald-400 mb-2">Monstros Selecionados:</p>
+                                    <ul className="space-y-1">
+                                        {selectedMonsters.map((m, idx) => (
+                                            <li key={idx} className="text-sm text-neutral-300">
+                                                • {m.count}x {m.name}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    <p className="text-xs text-neutral-500 mt-2">
+                                        Total: {selectedMonsters.reduce((sum, m) => sum + m.count, 0)} monstros
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Botões */}
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => {
+                                        setShowManualEncounterModal(false);
+                                        setManualEncounterName('');
+                                        setSelectedMonsters([]);
+                                        setAvailableTemplates([]);
+                                    }}
+                                    className="flex-1 px-4 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 font-semibold"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleCreateManualEncounter}
+                                    disabled={!manualEncounterName.trim() || selectedMonsters.length === 0}
+                                    className="flex-1 px-4 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    ⚔️ Criar Encontro
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showStoryModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                     <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-md w-full shadow-2xl">
