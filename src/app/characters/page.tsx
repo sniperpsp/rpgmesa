@@ -865,6 +865,7 @@ export default function CharactersPage() {
 
                                         {previewAvatar ? (
                                             <img
+                                                key={previewAvatar}
                                                 src={previewAvatar}
                                                 alt="Novo Avatar"
                                                 onLoad={() => setImageLoading(false)}
