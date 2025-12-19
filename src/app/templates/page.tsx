@@ -71,7 +71,7 @@ export default function TemplatesPage() {
     useEffect(() => {
         if (activeTab === 'abilities' && modalMode === 'create' && formData.rarity) {
             const stats = calculateAbilityStats(formData.effectType || 'DAMAGE', formData.rarity);
-            setFormData(prev => ({ ...prev, ...stats }));
+            setFormData((prev: any) => ({ ...prev, ...stats }));
         }
     }, [formData.rarity, formData.effectType, activeTab, modalMode]);
 
