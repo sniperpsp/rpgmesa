@@ -869,7 +869,7 @@ export default function CharactersPage() {
                                                 alt="Novo Avatar"
                                                 onLoad={() => setImageLoading(false)}
                                                 onError={() => setImageLoading(false)}
-                                                className={`w-32 h-32 rounded-xl object-cover border-2 border-indigo-500/50 transition-opacity duration-300 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+                                                className={`w-32 h-32 rounded-xl object-cover border-2 border-indigo-500/50`}
                                             />
                                         ) : editingChar?.avatarUrl ? (
                                             <img
