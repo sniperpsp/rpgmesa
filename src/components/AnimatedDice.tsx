@@ -18,13 +18,13 @@ export function AnimatedDice({ sides, onRoll, disabled, label }: AnimatedDicePro
         setRolling(true);
         setResult(null);
 
-        // Tocar som (opcional)
-        try {
-            const audio = new Audio('/sounds/dice-roll.mp3');
-            audio.play().catch(() => { });
-        } catch (e) {
-            // Som não disponível
-        }
+        // Tocar som (opcional) - REMOVIDO
+        // try {
+        //     const audio = new Audio('/sounds/dice-roll.mp3');
+        //     audio.play().catch(() => { });
+        // } catch (e) {
+        //     // Som não disponível
+        // }
 
         // Animação de rolagem (números aleatórios rápidos)
         let count = 0;

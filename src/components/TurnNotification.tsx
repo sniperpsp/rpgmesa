@@ -16,15 +16,15 @@ export function TurnNotification({ isYourTurn, characterName }: TurnNotification
             console.log('🔔 SUA VEZ!', characterName);
             setShow(true);
 
-            // Tentar tocar som (opcional)
-            try {
-                const audio = new Audio('/sounds/your-turn.mp3');
-                audio.play().catch(() => {
-                    console.log('Som não disponível, usando apenas notificação visual');
-                });
-            } catch (e) {
-                console.log('Som não disponível');
-            }
+            // Tentar tocar som (opcional) - REMOVIDO POR PERFORMANCE
+            // try {
+            //     const audio = new Audio('/sounds/your-turn.mp3');
+            //     audio.play().catch(() => {
+            //         console.log('Som não disponível, usando apenas notificação visual');
+            //     });
+            // } catch (e) {
+            //     console.log('Som não disponível');
+            // }
 
             // Vibrar se disponível
             if (navigator.vibrate) {

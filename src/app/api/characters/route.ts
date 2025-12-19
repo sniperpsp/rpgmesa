@@ -375,7 +375,17 @@ Retorne APENAS o prompt, sem explicações ou formatação adicional.`;
                         name: a.name,
                         description: a.description,
                         manaCost: a.manaCost,
-                        abilityType: a.abilityType
+                        abilityType: a.abilityType,
+                        // Novos campos de efeito
+                        effectType: a.effectType,
+                        baseDamage: a.baseDamage,
+                        diceCount: a.diceCount,
+                        diceType: a.diceType,
+                        scalingStat: a.scalingStat,
+                        targetStat: a.targetStat,
+                        effectValue: a.effectValue,
+                        duration: a.duration,
+                        rarity: a.rarity
                     }))
                 } : undefined,
             },

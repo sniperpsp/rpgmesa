@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { DiceRoller } from "@/components/DiceRoller";
@@ -87,6 +87,7 @@ export default function PlayerPage() {
     // Combat states
     const [combatActions, setCombatActions] = useState<any[]>([]);
     const [isMyTurn, setIsMyTurn] = useState(false);
+    const isMyTurnRef = useRef(false); // Ref para ter valor atualizado no setInterval
     const [showAttackModal, setShowAttackModal] = useState(false);
     const [attackTarget, setAttackTarget] = useState<any>(null);
     const [attackType, setAttackType] = useState<'melee' | 'ranged' | 'magic'>('melee');
@@ -109,8 +110,8 @@ export default function PlayerPage() {
         loadRoom();
         loadMyCharacters();
 
-        // Polling LEVE para combat sync - a cada 5 segundos
-        const combatInterval = setInterval(loadCombatStatus, 5000);
+        // Polling LEVE para combat sync - a cada 1 segundo (era 5s)
+        const combatInterval = setInterval(loadCombatStatus, 1000);
 
         // Reload completo da sala a cada 30 segundos
         const fullReloadInterval = setInterval(loadRoom, 30000);
@@ -122,22 +123,45 @@ export default function PlayerPage() {
     }, [code]);
 
     // Função para polling LEVE - apenas status de combate
+    // IMPORTANTE: Não atualiza se for a vez do jogador (evita refresh durante ação)
     async function loadCombatStatus() {
+        // Se é minha vez, NÃO atualizar (evita refresh irritante durante combate)
+        // Usar REF porque state pode estar desatualizado no setInterval
+        if (isMyTurnRef.current) {
+            console.log('⏸️ Polling pausado - é minha vez');
+            return;
+        }
+
         try {
-            const res = await fetch(`/api/rooms/${code}/status`);
+            const res = await fetch(`/api/rooms/${code}/status?t=${Date.now()}`, { cache: 'no-store' });
             if (res.ok) {
                 const data = await res.json();
 
                 // Atualizar apenas os dados de combate se houver encontro ativo
-                if (data.activeEncounter && room) {
+                if (data.activeEncounter) {
                     setRoom((prev: any) => {
-                        if (!prev) return prev;
+                        // Se ainda não temos room carregado, criar estrutura mínima
+                        if (!prev) {
+                            console.log('⚠️ Room ainda não carregado, criando estrutura mínima para combate');
+                            return {
+                                encounters: [{
+                                    ...data.activeEncounter,
+                                    isActive: true,
+                                    participants: data.activeEncounter.participants || []
+                                }],
+                                userCharacters: [],
+                                characterRooms: []
+                            };
+                        }
 
-                        // Atualizar encounters com dados frescos
-                        const updatedEncounters = prev.encounters.map((enc: any) => {
+                        // Atualizar encounters com dados frescos ou adicionar se não existir
+                        let found = false;
+                        const updatedEncounters = (prev.encounters || []).map((enc: any) => {
                             if (enc.id === data.activeEncounter.id) {
+                                found = true;
                                 return {
                                     ...enc,
+                                    isActive: true,
                                     currentTurnIndex: data.activeEncounter.currentTurnIndex,
                                     participants: data.activeEncounter.participants
                                 };
@@ -145,8 +169,21 @@ export default function PlayerPage() {
                             return enc;
                         });
 
+                        if (!found) {
+                            console.log('➕ Encontro ativo detectado e adicionado:', data.activeEncounter.name);
+                            updatedEncounters.push({
+                                ...data.activeEncounter,
+                                isActive: true,
+                                participants: data.activeEncounter.participants || []
+                            });
+                        }
+
                         return { ...prev, encounters: updatedEncounters };
                     });
+
+                    // CRÍTICO: Verificar turno IMEDIATAMENTE com dados frescos
+                    // Não esperar pelo useEffect React que adiciona lag de render
+                    checkCombatStatusDirect(data.activeEncounter);
                 }
             }
         } catch (e) {
@@ -160,23 +197,17 @@ export default function PlayerPage() {
         }
     }, [room, selectedCharacter]);
 
-    function checkCombatStatus() {
+    // Versão que aceita dados diretamente (chamada síncrona após polling)
+    function checkCombatStatusDirect(activeEncounter: any) {
         const currentChar = room?.userCharacters[selectedCharacter];
-        if (!currentChar) {
-            setIsMyTurn(false);
-            return;
-        }
-
-        // Verificar se há combate ativo onde o jogador participa
-        const activeEncounter = room?.encounters?.find((e) => e.isActive);
-        if (!activeEncounter) {
+        if (!currentChar || !activeEncounter) {
             setIsMyTurn(false);
             return;
         }
 
         // Verificar se o jogador está neste encontro
         const myParticipant = activeEncounter.participants?.find(
-            (p) => p.name === currentChar.character.name && !p.isNPC
+            (p: any) => p.name === currentChar.character.name && !p.isNPC
         );
 
         if (!myParticipant) {
@@ -184,22 +215,37 @@ export default function PlayerPage() {
             return;
         }
 
-        // Ordenar participantes por iniciativa (maior primeiro)
-        const sortedParticipants = [...activeEncounter.participants].sort(
-            (a, b) => b.initiative - a.initiative
-        );
+        // Ordenar participantes por iniciativa (maior primeiro) e nome (alfabética) para critério de desempate
+        const sortedParticipants = [...activeEncounter.participants].sort((a: any, b: any) => {
+            if (b.initiative !== a.initiative) return b.initiative - a.initiative;
+            return a.name.localeCompare(b.name);
+        });
+
+        console.log('⚡ Check DIRETO - Index:', activeEncounter.currentTurnIndex, 'Quem joga:', sortedParticipants[activeEncounter.currentTurnIndex || 0]?.name, 'Sou eu?', sortedParticipants[activeEncounter.currentTurnIndex || 0]?.id === myParticipant.id);
 
         // Verificar se é realmente o turno do jogador
-        const currentTurnIndex = (activeEncounter as any).currentTurnIndex || 0;
+        const currentTurnIndex = activeEncounter.currentTurnIndex || 0;
         const currentTurnParticipant = sortedParticipants[currentTurnIndex];
 
         // É o turno do jogador se o participante atual é ele
-        setIsMyTurn(currentTurnParticipant?.id === myParticipant.id);
+        const newIsMyTurn = currentTurnParticipant?.id === myParticipant.id;
+        setIsMyTurn(newIsMyTurn);
+        isMyTurnRef.current = newIsMyTurn; // Atualizar ref também
+    }
+
+    // Versão que lê do state (chamada pelo useEffect)
+    function checkCombatStatus() {
+        const activeEncounter = room?.encounters?.find((e) => e.isActive);
+        if (!activeEncounter) {
+            setIsMyTurn(false);
+            return;
+        }
+        checkCombatStatusDirect(activeEncounter);
     }
 
     async function loadRoom() {
         try {
-            const res = await fetch(`/api/rooms/${code}`);
+            const res = await fetch(`/api/rooms/${code}?t=${Date.now()}`, { cache: 'no-store' });
             if (!res.ok) {
                 if (res.status === 401) {
                     router.push("/login");
@@ -213,6 +259,12 @@ export default function PlayerPage() {
             const data = await res.json();
             setRoom(data.room);
             setLoading(false);
+
+            // CRÍTICO: Verificar turno imediatamente após carregar sala completa
+            const activeEncounter = data.room.encounters?.find((e: any) => e.isActive);
+            if (activeEncounter) {
+                checkCombatStatusDirect(activeEncounter);
+            }
         } catch (e) {
             console.error("Erro ao carregar sala:", e);
             router.push("/lobby");
@@ -812,6 +864,106 @@ export default function PlayerPage() {
 
                     const offensiveAbilities = currentChar.roomAbilities.filter(a => !a.abilityType || ['attack', 'debuff'].includes(a.abilityType));
 
+                    // Definir handleConfirmAttack PRIMEIRO (antes de handleRollDice)
+                    const handleConfirmAttack = async (result?: any) => {
+                        // Usar o resultado passado OU o state
+                        const finalResult = result || attackResult;
+
+                        console.log('🛡️ handleConfirmAttack chamado', { activeEncounter, myParticipant, attackResult: finalResult });
+                        if (!activeEncounter || !myParticipant || !finalResult) {
+                            console.log('❌ Faltando dados:', { activeEncounter: !!activeEncounter, myParticipant: !!myParticipant, attackResult: !!finalResult });
+                            return;
+                        }
+
+                        setIsAttacking(true);
+                        try {
+                            let res;
+
+                            if (attackType === 'magic' && selectedAttackAbility) {
+                                // Enviar dados de ataque para API de habilidades
+                                res = await fetch('/api/abilities/use', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        abilityId: selectedAttackAbility.id,
+                                        casterId: myParticipant.id,
+                                        targetId: attackTarget.id,
+                                        encounterId: activeEncounter.id,
+                                        // CRÍTICO: Passar dados do ataque (hit/miss/crítico)
+                                        attackRoll: finalResult.roll,
+                                        hit: finalResult.hit,
+                                        damage: finalResult.damage,
+                                        isCritical: finalResult.isCritical
+                                    })
+                                });
+                            } else {
+                                // Enviar dados de ataque calculados no frontend
+                                res = await fetch('/api/combat/attack', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        encounterId: activeEncounter.id,
+                                        attackerId: myParticipant.id,
+                                        targetId: attackTarget.id,
+                                        attackType,
+                                        attackRoll: finalResult.roll,
+                                        hit: finalResult.hit,
+                                        damage: finalResult.damage,
+                                        isCritical: finalResult.isCritical
+                                    })
+                                });
+                            }
+
+                            if (res.ok) {
+                                const data = await res.json();
+                                console.log('✅ Ataque executado com sucesso:', data);
+
+                                // Mostrar resultado da habilidade
+                                if (attackType === 'magic' && data.result) {
+                                    const r = data.result;
+                                    let message = `${r.abilityName}!\n`;
+                                    message += `Dados: ${r.diceRolls.join(' + ')} = ${r.diceTotal}\n`;
+                                    message += `Modificador: +${r.modifier}\n`;
+                                    message += `Base: +${r.baseDamage}\n`;
+                                    message += `Total: ${r.totalValue}`;
+
+                                    if (r.effectType === 'DAMAGE') {
+                                        if (r.hit === false) {
+                                            message = `${r.abilityName}!\n❌ ERROU!`;
+                                        } else {
+                                            message += `\n💥 Dano causado!`;
+                                        }
+                                    } else if (r.effectType === 'HEAL') {
+                                        message += `\n💚 HP restaurado!`;
+                                    } else if (r.effectType === 'BUFF') {
+                                        message += `\n⬆️ Buff aplicado!`;
+                                    } else if (r.effectType === 'DEBUFF') {
+                                        message += `\n⬇️ Debuff aplicado!`;
+                                    }
+
+                                    alert(message);
+                                }
+
+                                setShowAttackModal(false);
+                                setAttackTarget(null);
+                                setDiceRolled(false);
+                                setAttackRoll(null);
+                                setAttackResult(null);
+                                setSelectedAttackAbility(null);
+                                loadRoom();
+                            } else {
+                                const err = await res.json();
+                                console.error('❌ Erro no ataque:', err);
+                                alert(err.error || 'Erro ao atacar');
+                            }
+                        } catch (e) {
+                            console.error('❌ Exceção no ataque:', e);
+                            alert('Erro ao atacar');
+                        } finally {
+                            setIsAttacking(false);
+                        }
+                    };
+
                     const handleRollDice = () => {
                         const roll = Math.floor(Math.random() * 20) + 1;
                         setAttackRoll(roll);
@@ -827,71 +979,25 @@ export default function PlayerPage() {
                             if (isCritical) damage *= 2;
                         }
 
-                        setAttackResult({
+                        const result = {
                             roll,
                             totalAttack,
                             hit,
                             isCritical,
                             damage,
                             targetDefense
-                        });
-                    };
+                        };
 
-                    const handleConfirmAttack = async () => {
-                        if (!activeEncounter || !myParticipant || !attackResult) return;
+                        setAttackResult(result);
 
-                        setIsAttacking(true);
-                        try {
-                            let res;
+                        console.log('🎲 Dados rolados:', result);
 
-                            if (attackType === 'magic' && selectedAttackAbility) {
-                                res = await fetch('/api/combat/use-ability', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        encounterId: activeEncounter.id,
-                                        userId: myParticipant.id,
-                                        abilityId: selectedAttackAbility.id,
-                                        targetId: attackTarget.id
-                                    })
-                                });
-                            } else {
-                                res = await fetch('/api/combat/attack', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        encounterId: activeEncounter.id,
-                                        attackerId: myParticipant.id,
-                                        targetId: attackTarget.id,
-                                        attackType
-                                    })
-                                });
-                            }
-
-                            if (res.ok) {
-                                // Se foi magia, alertar sucesso pois pode não ter dano numérico automático
-                                if (attackType === 'magic') {
-                                    const data = await res.json();
-                                    alert(data.message || 'Magia lançada com sucesso!');
-                                }
-
-                                setShowAttackModal(false);
-                                setAttackTarget(null);
-                                setDiceRolled(false);
-                                setAttackRoll(null);
-                                setAttackResult(null);
-                                setSelectedAttackAbility(null);
-                                loadRoom();
-                            } else {
-                                const err = await res.json();
-                                alert(err.error || 'Erro ao atacar');
-                            }
-                        } catch (e) {
-                            console.error(e);
-                            alert('Erro ao atacar');
-                        } finally {
-                            setIsAttacking(false);
-                        }
+                        // AUTO-EXECUTAR ataque após 500ms (tempo para ver o resultado)
+                        // PASSAR O RESULTADO DIRETAMENTE ao invés de depender do state
+                        setTimeout(() => {
+                            console.log('⏱️ Auto-executando ataque com resultado:', result);
+                            handleConfirmAttack(result);
+                        }, 500);
                     };
 
                     return (
@@ -1059,24 +1165,16 @@ export default function PlayerPage() {
                                     </div>
                                 )}
 
-                                {diceRolled && (
-                                    <button
-                                        onClick={handleConfirmAttack}
-                                        disabled={isAttacking}
-                                        className="w-full px-6 py-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {isAttacking ? (
-                                            <span className="flex items-center justify-center gap-2">
-                                                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                                </svg>
-                                                Atacando...
-                                            </span>
-                                        ) : (
-                                            attackType === 'magic' ? '🔮 LANÇAR MAGIA' : '⚔️ CONFIRMAR ATAQUE'
-                                        )}
-                                    </button>
+                                {diceRolled && isAttacking && (
+                                    <div className="w-full px-6 py-4 rounded-xl bg-yellow-600 text-white font-bold text-lg text-center">
+                                        <span className="flex items-center justify-center gap-2">
+                                            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                            </svg>
+                                            {attackType === 'magic' ? 'Lançando magia...' : 'Executando ataque...'}
+                                        </span>
+                                    </div>
                                 )}
 
                                 <button

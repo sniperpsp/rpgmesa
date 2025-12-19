@@ -79,6 +79,21 @@ model CharacterAbility {
   manaCost    Int     @default(0) @map("mana_cost")
   abilityType String? @map("ability_type")
 
+  // Sistema de Efeitos (Espelhado de CharacterRoomAbility)
+  effectType       String? @map("effect_type")      // "DAMAGE", "HEAL", "BUFF", "DEBUFF"
+  baseDamage       Int?    @default(0) @map("base_damage")
+  diceCount        Int?    @default(1) @map("dice_count")
+  diceType         Int?    @default(6) @map("dice_type")
+  scalingStat      String? @map("scaling_stat")
+
+  targetStat       String? @map("target_stat")
+  effectValue      Int?    @map("effect_value")
+  duration         Int?    @default(1)
+  
+  rarity           String?
+  school           String?
+  color            String?
+
   character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
 
   @@index([characterId])
@@ -173,6 +188,18 @@ model CharacterRoomAbility {
   color            String?
   difficulty2d6    Int?    @map("difficulty_2d6")
   abilityType      String? @map("ability_type")
+  
+  // Sistema de Efeitos
+  effectType       String? @map("effect_type")      // "DAMAGE", "HEAL", "BUFF", "DEBUFF"
+  baseDamage       Int?    @default(0) @map("base_damage")  // Dano/Cura base
+  diceCount        Int?    @default(1) @map("dice_count")   // Quantidade de dados
+  diceType         Int?    @default(6) @map("dice_type")    // Tipo do dado (4, 6, 8, 10, 12, 20, 100)
+  scalingStat      String? @map("scaling_stat")     // "forca", "destreza", "inteligencia"
+  
+  // Para BUFF/DEBUFF
+  targetStat       String? @map("target_stat")      // Qual atributo afeta
+  effectValue      Int?    @map("effect_value")     // Quanto aumenta/diminui
+  duration         Int?    @default(1)              // Turnos de duração
 
   characterRoom CharacterRoom @relation(fields: [characterRoomId], references: [id], onDelete: Cascade)
 
@@ -232,6 +259,9 @@ model EncounterParticipant {
   level         Int     @default(1)
   xpReward      Int     @default(10) @map("xp_reward")  // XP given when killed
   damageReceived Json?  @map("damage_received")        // {"playerId": damage}
+  
+  // Active Effects System (Buffs/Debuffs)
+  activeEffects Json?   @map("active_effects")         // [{ name, type, stat, value, turnsRemaining, sourceId }]
 
   encounter Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
 
@@ -328,6 +358,16 @@ model AbilityTemplate {
   rarity           String?
   school           String?
   classRestriction String?  @map("class_restriction")
+
+  // Sistema de Efeitos (Novo Padrão)
+  effectType       String? @map("effect_type")      // "DAMAGE", "HEAL", "BUFF", "DEBUFF"
+  baseDamage       Int?    @default(0) @map("base_damage")
+  diceCount        Int?    @default(1) @map("dice_count")
+  diceType         Int?    @default(6) @map("dice_type")
+  scalingStat      String? @map("scaling_stat")
+  targetStat       String? @map("target_stat")
+  effectValue      Int?    @map("effect_value")
+  duration         Int?    @default(1)
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 

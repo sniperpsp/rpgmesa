@@ -26,7 +26,9 @@ export async function POST(request: Request) {
     }
 
     try {
-        const { encounterId, attackerId, targetId, attackType } = await request.json();
+        const { encounterId, attackerId, targetId, attackType, attackRoll, hit, damage, isCritical } = await request.json();
+
+        console.log('🎯 Ataque recebido:', { encounterId, attackerId, targetId, attackType, attackRoll, hit, damage });
 
         const encounter = await prisma.encounter.findUnique({
             where: { id: encounterId },
@@ -45,8 +47,8 @@ export async function POST(request: Request) {
             }
         });
 
-        if (!encounter || encounter.room.gmUserId !== session.userId) {
-            return NextResponse.json({ error: "Permissão negada" }, { status: 403 });
+        if (!encounter) {
+            return NextResponse.json({ error: "Encontro não encontrado" }, { status: 404 });
         }
 
         const attacker = encounter.participants.find(p => p.id === attackerId);
@@ -56,56 +58,12 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Participante não encontrado" }, { status: 404 });
         }
 
-        // Buscar stats do atacante se for jogador
-        let attackerStats = { forca: 3, destreza: 3, defesa: 3 };
-        if (!attacker.isNPC) {
-            const charRoom = encounter.room.characterRooms.find(cr => cr.character.name === attacker.name);
-            if (charRoom?.roomStats) {
-                attackerStats = {
-                    forca: charRoom.roomStats.forca,
-                    destreza: charRoom.roomStats.destreza,
-                    defesa: charRoom.roomStats.defesa
-                };
-            }
-        }
-
-        // Buscar stats do alvo se for jogador
-        let targetStats = { defesa: 10 };
-        if (!target.isNPC) {
-            const charRoom = encounter.room.characterRooms.find(cr => cr.character.name === target.name);
-            if (charRoom?.roomStats) {
-                targetStats = { defesa: charRoom.roomStats.defesa };
-            }
-        }
-
-        // Rolagem de ataque (d20)
-        const attackRoll = Math.floor(Math.random() * 20) + 1;
-        const isCritical = attackRoll === 20;
-        const isCriticalFail = attackRoll === 1;
-
-        // Bônus de ataque baseado no tipo
-        const attackBonus = attackType === 'melee' ? attackerStats.forca : attackerStats.destreza;
-        const totalAttack = attackRoll + attackBonus;
-
-        // Defesa do alvo (base 10 + bônus de defesa)
-        const targetDefense = 10 + targetStats.defesa;
-
-        // Verificar acerto
-        const hit = isCriticalFail ? false : (isCritical || totalAttack >= targetDefense);
-
-        let damage = 0;
         let newHp = target.hp;
+        let finalDamage = 0;
 
-        if (hit) {
-            // Dano = Força ou Destreza do atacante
-            damage = attackBonus;
-
-            // Crítico = dano dobrado
-            if (isCritical) {
-                damage *= 2;
-            }
-
-            // Aplicar dano
+        // Aplicar dano se acertou
+        if (hit && damage > 0) {
+            finalDamage = damage;
             newHp = Math.max(0, target.hp - damage);
 
             // Rastrear dano recebido (para distribuição de XP proporcional)
@@ -129,10 +87,14 @@ export async function POST(request: Request) {
                 }
             });
 
+            console.log('💥 Dano aplicado:', { targetName: target.name, damage, oldHp: target.hp, newHp });
+
             // Se o NPC morreu (HP <= 0), distribuir XP
             if (newHp <= 0 && target.isNPC) {
                 const npcLevel = (target as any).level || 1;
                 const xpReward = (target as any).xpReward || npcLevel * npcLevel * 10;
+
+                console.log('💀 NPC morreu! Distribuindo XP:', { npcName: target.name, xpReward, damageReceived });
 
                 // Calcular XP proporcional para cada jogador que causou dano
                 const totalDamage = Object.values(damageReceived).reduce((sum: number, d: any) => sum + d, 0) as number;
@@ -140,6 +102,8 @@ export async function POST(request: Request) {
                 for (const [charRoomId, dmg] of Object.entries(damageReceived)) {
                     const proportion = (dmg as number) / totalDamage;
                     const xpGrant = Math.floor(xpReward * proportion);
+
+                    console.log('🎯 Distribuindo XP:', { charRoomId, dmg, proportion, xpGrant });
 
                     // Buscar stats do jogador e aplicar XP
                     const playerStats = await prisma.characterRoomStats.findFirst({
@@ -158,6 +122,7 @@ export async function POST(request: Request) {
                             newLevel++;
                             newXpToNext = newLevel * newLevel * 100;
                             newStatPoints += 3;
+                            console.log('🎉 LEVEL UP!', { oldLevel: playerStats.level, newLevel, statPoints: newStatPoints });
                         }
 
                         await prisma.characterRoomStats.update({
@@ -169,6 +134,8 @@ export async function POST(request: Request) {
                                 statPoints: newStatPoints
                             }
                         });
+
+                        console.log('✅ XP aplicado:', { newXp, newLevel, newStatPoints });
                     }
                 }
             }
@@ -179,13 +146,13 @@ export async function POST(request: Request) {
             attackerName: attacker.name,
             targetId: target.id,
             targetName: target.name,
-            attackRoll,
-            attackBonus,
-            totalAttack,
-            targetDefense,
-            hit,
-            critical: isCritical,
-            damage,
+            attackRoll: attackRoll || 0,
+            attackBonus: 0,
+            totalAttack: 0,
+            targetDefense: 0,
+            hit: hit || false,
+            critical: isCritical || false,
+            damage: finalDamage,
             remainingHp: newHp
         };
 
@@ -198,10 +165,12 @@ export async function POST(request: Request) {
             }
         });
 
+        console.log('✅ Retornando resultado:', result);
+
         return NextResponse.json({ result });
 
     } catch (e) {
-        console.error("Erro ao processar ataque:", e);
+        console.error("❌ Erro ao processar ataque:", e);
         return NextResponse.json({ error: "Erro interno" }, { status: 500 });
     }
 }

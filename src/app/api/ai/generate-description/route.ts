@@ -44,19 +44,11 @@ Máximo 40 palavras. Seja direto.`;
                 break;
 
             case 'ability':
-                const abilityContext = context || {};
-                prompt = `Você é um Game Designer ajudando iniciantes. Crie a mecânica para a habilidade "${name}".
-Contexto: ${JSON.stringify(abilityContext)}
+                prompt = `Crie uma descrição épica e curta (máximo 2 linhas) para a habilidade de RPG "${name}".
+${context ? `\nContexto: ${context}` : ''}
 
-Gere uma descrição EXATAMENTE neste formato simplificado:
-
-"[Breve descrição visual]"
-**Efeito:** [Info de Dano. Ex: "Tira 10 de HP" ou "Dano 3-18 (3 dados de 6 lados)"]. Prefira dano direto a reduzir atributos.
-**Custo:** ${abilityContext.manaCost ? abilityContext.manaCost + ' Mana' : '[Sugira valor] Mana'}
-**Como Usar:** Jogue 1d20 + [Atributo]. Se tirar mais que [12], acerta.
-**Crítico:** Se tirar 20 no dado, o dano dobra.
-
-Seja didático e claro. O jogador é iniciante.`;
+Retorne APENAS a descrição narrativa, sem mecânicas ou formatação extra.
+Exemplo: "Conjura uma esfera flamejante que explode ao contato, causando dano devastador."`;
                 break;
 
             default:

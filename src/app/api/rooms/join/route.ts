@@ -96,6 +96,15 @@ export async function POST(request: Request) {
                                 name: ability.name,
                                 description: ability.description,
                                 manaCost: ability.manaCost,
+                                effectType: ability.effectType,
+                                baseDamage: ability.baseDamage,
+                                diceCount: ability.diceCount,
+                                diceType: ability.diceType,
+                                scalingStat: ability.scalingStat,
+                                targetStat: ability.targetStat,
+                                effectValue: ability.effectValue,
+                                duration: ability.duration,
+                                rarity: ability.rarity,
                             }))
                         }
                     }

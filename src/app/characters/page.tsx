@@ -53,40 +53,150 @@ export default function CharactersPage() {
         name: "",
         description: "",
         manaCost: 0,
-        abilityType: "attack",
-        rarity: "comum"
+        // Campos compatíveis com o sistema completo
+        effectType: 'DAMAGE' as 'DAMAGE' | 'HEAL' | 'BUFF' | 'DEBUFF',
+        rarity: "comum" as "comum" | "incomum" | "raro" | "epico" | "lendario",
+        baseDamage: 0,
+        diceCount: 1,
+        diceType: 6,
+        scalingStat: 'forca' as 'forca' | 'destreza' | 'inteligencia',
+        targetStat: 'defesa' as 'forca' | 'destreza' | 'inteligencia' | 'defesa' | 'velocidade',
+        effectValue: 0,
+        duration: 1
     });
     const [isGeneratingAbility, setIsGeneratingAbility] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [abilityModalTab, setAbilityModalTab] = useState<'list' | 'create'>('list');
 
-    const generateAbilityDetails = async () => {
+    // Inferir atributo de escala baseado na classe
+    useEffect(() => {
+        if (!newChar.class) return;
+        const cls = newChar.class.toLowerCase();
+        let stat: 'forca' | 'destreza' | 'inteligencia' = 'forca';
+
+        if (cls.includes('mag') || cls.includes('wiz') || cls.includes('feit') || cls.includes('brux') || cls.includes('clér') || cls.includes('sacer')) {
+            stat = 'inteligencia';
+        } else if (cls.includes('lad') || cls.includes('rog') || cls.includes('arq') || cls.includes('rang') || cls.includes('cac')) {
+            stat = 'destreza';
+        }
+
+        setCustomAbility(prev => ({ ...prev, scalingStat: stat }));
+    }, [newChar.class]);
+
+    // Recalcular stats quando raridade ou tipo mudar
+    useEffect(() => {
+        const stats = calculateAbilityStats(customAbility.effectType, customAbility.rarity);
+        setCustomAbility(prev => ({
+            ...prev,
+            ...stats
+        }));
+    }, [customAbility.effectType, customAbility.rarity]);
+
+    function calculateAbilityStats(type: string, rarity: string) {
+        // Valores base
+        let diceCount = 1;
+        let diceType = 6;
+        let baseDamage = 0;
+        let manaCost = 3;
+        let effectValue = 2;
+        let duration = 2;
+
+        switch (rarity) {
+            case 'comum':
+                diceCount = 1; diceType = 6; baseDamage = 0; manaCost = 3;
+                effectValue = 2; duration = 2;
+                break;
+            case 'incomum':
+                diceCount = 1; diceType = 8; baseDamage = 2; manaCost = 5;
+                effectValue = 3; duration = 3;
+                break;
+            case 'raro':
+                diceCount = 2; diceType = 6; baseDamage = 5; manaCost = 8;
+                effectValue = 4; duration = 3;
+                break;
+            case 'epico':
+                diceCount = 3; diceType = 6; baseDamage = 8; manaCost = 12;
+                effectValue = 5; duration = 4;
+                break;
+            case 'lendario':
+                diceCount = 4; diceType = 8; baseDamage = 12; manaCost = 20;
+                effectValue = 8; duration = 5;
+                break;
+        }
+
+        return { diceCount, diceType, baseDamage, manaCost, effectValue, duration };
+    }
+
+    const analyzeAbility = async () => {
+        if (!customAbility.name) return;
+        setIsAnalyzing(true);
+        try {
+            const res = await fetch('/api/ai/analyze-ability', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: customAbility.name })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                // Atualizar estado com dados da IA
+                // O useEffect vai disparar e calcular os dados numéricos baseados na raridade/tipo
+                setCustomAbility(prev => ({
+                    ...prev,
+                    rarity: data.rarity || 'comum',
+                    effectType: data.effectType || 'DAMAGE',
+                    scalingStat: data.scalingStat || 'forca',
+                    targetStat: data.targetStat || 'defesa',
+                    description: data.description || prev.description
+                }));
+            } else {
+                alert("Erro ao analisar habilidade.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Erro de conexão.");
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
+    const generateAbilityDescription = async () => {
         if (!customAbility.name) {
             alert("Preencha o nome da habilidade primeiro!");
             return;
         }
         setIsGeneratingAbility(true);
         try {
-            const res = await fetch('/api/ai/generate-ability', {
+            // Criar contexto para a IA
+            let context = `Tipo: ${customAbility.effectType === 'DAMAGE' ? 'Dano' : customAbility.effectType === 'HEAL' ? 'Cura' : customAbility.effectType === 'BUFF' ? 'Buff' : 'Debuff'}
+            Raridade: ${customAbility.rarity}`;
+
+            if (customAbility.effectType === 'DAMAGE' || customAbility.effectType === 'HEAL') {
+                context += `\nDados: ${customAbility.diceCount}d${customAbility.diceType} + ${customAbility.baseDamage}`;
+            } else {
+                context += `\nValor: ${customAbility.effectValue}, Duração: ${customAbility.duration} turnos`;
+            }
+
+            const res = await fetch('/api/ai/generate-description', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    type: 'ability',
                     name: customAbility.name,
-                    type: customAbility.abilityType,
-                    existingDescription: customAbility.description
+                    context: context
                 })
             });
-            const data = await res.json();
-            if (data.description || data.manaCost !== undefined) {
+
+            if (res.ok) {
+                const data = await res.json();
                 setCustomAbility(prev => ({
                     ...prev,
-                    description: data.description || prev.description,
-                    manaCost: data.manaCost || prev.manaCost,
-                    rarity: data.rarity || prev.rarity
+                    description: data.description
                 }));
             }
         } catch (e) {
             console.error(e);
-            alert("Erro ao gerar detalhes com IA");
+            alert("Erro ao gerar descrição com IA");
         } finally {
             setIsGeneratingAbility(false);
         }
@@ -1020,66 +1130,153 @@ export default function CharactersPage() {
                         ) : (
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm text-neutral-400 mb-1">Nome da Habilidade</label>
-                                    <input
-                                        type="text"
-                                        value={customAbility.name}
-                                        onChange={(e) => setCustomAbility({ ...customAbility, name: e.target.value })}
-                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl focus:outline-none focus:border-emerald-500 text-white placeholder-neutral-500"
-                                        placeholder="Ex: Bola de Fogo, Cura Rápida..."
-                                    />
+                                    <label className="block text-sm font-semibold text-neutral-300 mb-1">Nome da Habilidade</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={customAbility.name}
+                                            onChange={(e) => setCustomAbility({ ...customAbility, name: e.target.value })}
+                                            className="flex-1 px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl focus:outline-none focus:border-emerald-500 text-white placeholder-neutral-500"
+                                            placeholder="Ex: Bola de Fogo"
+                                        />
+                                        <button
+                                            onClick={analyzeAbility}
+                                            disabled={isAnalyzing || !customAbility.name}
+                                            className="px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:from-neutral-800 disabled:to-neutral-800 disabled:text-neutral-500 text-white rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-purple-900/20"
+                                            title="Preencher automaticamente com IA"
+                                        >
+                                            {isAnalyzing ? <span className="animate-spin">⏳</span> : '✨ Auto'}
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-neutral-500 mt-1">
+                                        Digite o nome e clique em Auto para a IA criar tudo.
+                                    </p>
                                 </div>
-                                <div className="grid grid-cols-1 gap-4">
+
+                                <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm text-neutral-400 mb-1">Tipo da Habilidade</label>
+                                        <label className="block text-sm font-semibold text-neutral-300 mb-1">Tipo de Efeito</label>
                                         <select
-                                            value={customAbility.abilityType}
-                                            onChange={(e) => setCustomAbility({ ...customAbility, abilityType: e.target.value })}
+                                            value={customAbility.effectType}
+                                            onChange={(e) => setCustomAbility({ ...customAbility, effectType: e.target.value as any })}
                                             className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl focus:outline-none focus:border-emerald-500 text-white"
                                         >
-                                            <option value="attack">⚔️ Ataque</option>
-                                            <option value="heal">💚 Cura</option>
-                                            <option value="buff">⬆️ Buff</option>
-                                            <option value="debuff">⬇️ Debuff</option>
-                                            <option value="protection">🛡️ Proteção</option>
+                                            <option value="DAMAGE">💥 Dano</option>
+                                            <option value="HEAL">💚 Cura</option>
+                                            <option value="BUFF">⬆️ Buff</option>
+                                            <option value="DEBUFF">⬇️ Debuff</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-neutral-300 mb-1">Raridade</label>
+                                        <select
+                                            value={customAbility.rarity}
+                                            onChange={(e) => setCustomAbility({ ...customAbility, rarity: e.target.value as any })}
+                                            className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl focus:outline-none focus:border-emerald-500 text-white capitalize"
+                                        >
+                                            <option value="comum">Comum</option>
+                                            <option value="incomum">Incomum</option>
+                                            <option value="raro">Raro</option>
+                                            <option value="epico">Épico</option>
+                                            <option value="lendario">Lendário</option>
                                         </select>
                                     </div>
                                 </div>
 
-                                <button
-                                    onClick={generateAbilityDetails}
-                                    disabled={isGeneratingAbility}
-                                    className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-xl text-white font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                                >
-                                    {isGeneratingAbility ? (
-                                        <>
-                                            <span className="animate-spin">⏳</span> Analisando Poder e Gerando Detalhes...
-                                        </>
-                                    ) : (
-                                        <>✨ Definir Raridade e Custo com IA</>
-                                    )}
-                                </button>
+                                {/* Preview Automático dos Stats */}
+                                <div className="bg-neutral-800/30 border border-neutral-700/30 rounded-xl p-4">
+                                    <h4 className="text-sm font-semibold text-neutral-400 mb-3 flex items-center gap-2">
+                                        ⚙️ Configuração Automática (Baseada na Raridade)
+                                    </h4>
 
-                                <div className="flex gap-4 p-4 bg-neutral-800/30 rounded-xl border border-neutral-800">
-                                    <div className="flex-1 text-center border-r border-neutral-700/50">
-                                        <label className="block text-xs text-neutral-500 uppercase font-bold mb-1">Raridade</label>
-                                        <div className="text-xl font-bold text-purple-400 capitalize">{customAbility.rarity}</div>
+                                    <div className="grid grid-cols-3 gap-4 text-center">
+                                        <div className="p-2 bg-neutral-900/50 rounded-lg">
+                                            <div className="text-xs text-neutral-500 uppercase">Custo Mana</div>
+                                            <div className="text-xl font-bold text-blue-400">{customAbility.manaCost}</div>
+                                        </div>
+                                        {(customAbility.effectType === 'DAMAGE' || customAbility.effectType === 'HEAL') ? (
+                                            <>
+                                                <div className="p-2 bg-neutral-900/50 rounded-lg">
+                                                    <div className="text-xs text-neutral-500 uppercase">Dados</div>
+                                                    <div className="text-xl font-bold text-purple-400">
+                                                        {customAbility.diceCount}d{customAbility.diceType}
+                                                    </div>
+                                                </div>
+                                                <div className="p-2 bg-neutral-900/50 rounded-lg">
+                                                    <div className="text-xs text-neutral-500 uppercase">Base</div>
+                                                    <div className="text-xl font-bold text-emerald-400">+{customAbility.baseDamage}</div>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="p-2 bg-neutral-900/50 rounded-lg">
+                                                    <div className="text-xs text-neutral-500 uppercase">Valor</div>
+                                                    <div className="text-xl font-bold text-purple-400">{customAbility.effectValue}</div>
+                                                </div>
+                                                <div className="p-2 bg-neutral-900/50 rounded-lg">
+                                                    <div className="text-xs text-neutral-500 uppercase">Duração</div>
+                                                    <div className="text-xl font-bold text-emerald-400">{customAbility.duration}t</div>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
-                                    <div className="flex-1 text-center">
-                                        <label className="block text-xs text-neutral-500 uppercase font-bold mb-1">Custo (MP)</label>
-                                        <div className="text-xl font-bold text-blue-400">{customAbility.manaCost}</div>
+
+                                    {/* Configuração de Escala */}
+                                    <div className="mt-4 pt-4 border-t border-neutral-700/30">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs text-neutral-500 uppercase mb-1">Escala com</label>
+                                                <select
+                                                    value={customAbility.scalingStat}
+                                                    onChange={(e) => setCustomAbility({ ...customAbility, scalingStat: e.target.value as any })}
+                                                    className="w-full px-2 py-1 bg-neutral-900 border border-neutral-800 rounded text-sm text-neutral-300"
+                                                >
+                                                    <option value="forca">Força</option>
+                                                    <option value="destreza">Destreza</option>
+                                                    <option value="inteligencia">Inteligência</option>
+                                                </select>
+                                            </div>
+                                            {(customAbility.effectType === 'BUFF' || customAbility.effectType === 'DEBUFF') && (
+                                                <div>
+                                                    <label className="block text-xs text-neutral-500 uppercase mb-1">Afeta</label>
+                                                    <select
+                                                        value={customAbility.targetStat}
+                                                        onChange={(e) => setCustomAbility({ ...customAbility, targetStat: e.target.value as any })}
+                                                        className="w-full px-2 py-1 bg-neutral-900 border border-neutral-800 rounded text-sm text-neutral-300"
+                                                    >
+                                                        <option value="forca">Força</option>
+                                                        <option value="destreza">Destreza</option>
+                                                        <option value="inteligencia">Inteligência</option>
+                                                        <option value="defesa">Defesa</option>
+                                                        <option value="velocidade">Velocidade</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
+
                                 <div>
-                                    <label className="block text-sm text-neutral-400 mb-1">Descrição</label>
+                                    <div className="flex justify-between items-end mb-1">
+                                        <label className="block text-sm font-semibold text-neutral-300">Descrição</label>
+                                        <button
+                                            onClick={generateAbilityDescription}
+                                            disabled={isGeneratingAbility}
+                                            className="text-xs px-3 py-1 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 rounded-full transition-all disabled:opacity-50 flex items-center gap-1"
+                                        >
+                                            {isGeneratingAbility ? '⏳ Gerando...' : '✨ Gerar com IA'}
+                                        </button>
+                                    </div>
                                     <textarea
                                         value={customAbility.description}
                                         onChange={(e) => setCustomAbility({ ...customAbility, description: e.target.value })}
                                         className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl focus:outline-none focus:border-emerald-500 text-white placeholder-neutral-500"
                                         rows={3}
-                                        placeholder="Descreva o efeito..."
+                                        placeholder={isGeneratingAbility ? "A IA está escrevendo..." : "Descreva o efeito visual da habilidade..."}
+                                        disabled={isGeneratingAbility}
                                     />
                                 </div>
+
                                 <button
                                     onClick={() => {
                                         if (!customAbility.name) {
@@ -1090,11 +1287,32 @@ export default function CharactersPage() {
                                             alert("Máximo de 3 habilidades!");
                                             return;
                                         }
-                                        setSelectedAbilities([...selectedAbilities, { ...customAbility, id: 'temp-' + Date.now() }]);
-                                        setCustomAbility({ name: "", description: "", manaCost: 0, abilityType: "attack", rarity: "comum" });
+                                        // Converter estado local para formato da ability TEMPLATE
+                                        // O backend espera { name, description, amount, etc }
+                                        // Mas aqui estamos criando um objeto que será enviado no array 'abilities'
+                                        // O endpoint POST /api/characters vai receber e criar as CharacterRoomAbilities
+
+                                        setSelectedAbilities([...selectedAbilities, {
+                                            ...customAbility,
+                                            id: 'custom-' + Date.now(),
+                                            // Mapear campos para visualização na lista
+                                            abilityType: customAbility.effectType === 'DAMAGE' ? 'Ataque' : customAbility.effectType === 'HEAL' ? 'Cura' : 'Suporte'
+                                        }]);
+
+                                        // Resetar form
+                                        const defaultStats = calculateAbilityStats('DAMAGE', 'comum');
+                                        setCustomAbility({
+                                            name: "",
+                                            description: "",
+                                            effectType: "DAMAGE",
+                                            rarity: "comum",
+                                            scalingStat: 'forca',
+                                            targetStat: 'defesa',
+                                            ...defaultStats
+                                        });
                                         setShowAbilityModal(false);
                                     }}
-                                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition-all text-white"
+                                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition-all text-white shadow-lg shadow-emerald-900/20"
                                 >
                                     Adicionar Habilidade
                                 </button>

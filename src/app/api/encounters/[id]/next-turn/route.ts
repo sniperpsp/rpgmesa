@@ -39,6 +39,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         // Calcular próximo índice (circular)
         const nextIndex = (encounter.currentTurnIndex + 1) % sortedParticipants.length;
 
+        // Processar efeitos ativos APENAS do participante que vai jogar (início do turno dele)
+        // Isso faz com que a duração conte como "Rodadas" para aquele personagem
+        const nextParticipant = sortedParticipants[nextIndex];
+        const activeEffects = (nextParticipant as any).activeEffects || [];
+
+        if (activeEffects.length > 0) {
+            // Reduzir duração de cada efeito
+            const updatedEffects = activeEffects
+                .map((effect: any) => ({
+                    ...effect,
+                    turnsRemaining: effect.turnsRemaining - 1
+                }))
+                .filter((effect: any) => effect.turnsRemaining > 0); // Remover efeitos expirados
+
+            // Atualizar participante
+            await prisma.encounterParticipant.update({
+                where: { id: nextParticipant.id },
+                data: { activeEffects: updatedEffects }
+            });
+
+            console.log(`⏳ Efeitos de ${nextParticipant.name} processados: ${activeEffects.length} -> ${updatedEffects.length}`);
+        }
+
         // Atualizar encontro
         const updated = await prisma.encounter.update({
             where: { id: encounterId },

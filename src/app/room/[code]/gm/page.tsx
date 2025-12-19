@@ -58,6 +58,11 @@ interface Room {
             defesa: number;
             velocidade: number;
         } | null;
+        roomAbilities: Array<{
+            id: string;
+            name: string;
+            manaCost: number;
+        }>;
     }>;
     encounters: Array<{
         id: string;
@@ -137,12 +142,13 @@ export default function GMPage() {
     // Manual Encounter Modal
     const [showManualEncounterModal, setShowManualEncounterModal] = useState(false);
     const [manualEncounterName, setManualEncounterName] = useState('');
-    const [selectedMonsters, setSelectedMonsters] = useState<Array<{ templateId: string; name: string; count: number }>>([]);
+    const [selectedMonsters, setSelectedMonsters] = useState<Array<{ templateId: string; name: string; count: number; level?: number }>>([]);
     const [availableTemplates, setAvailableTemplates] = useState<any[]>([]);
 
     // Ability Modal States
     const [showAbilityModal, setShowAbilityModal] = useState(false);
     const [selectedCharacterForAbility, setSelectedCharacterForAbility] = useState<any>(null);
+    const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
     const [newAbility, setNewAbility] = useState({
         name: '',
         description: '',
@@ -152,12 +158,74 @@ export default function GMPage() {
         healing: 0,
         buffValue: 0,
         debuffValue: 0,
-        protectionValue: 0
+        protectionValue: 0,
+        // Novos campos do sistema de efeitos
+        effectType: 'DAMAGE' as 'DAMAGE' | 'HEAL' | 'BUFF' | 'DEBUFF',
+        baseDamage: 0,
+        diceCount: 1,
+        diceType: 6,
+        scalingStat: 'inteligencia' as 'forca' | 'destreza' | 'inteligencia',
+        targetStat: 'defesa' as 'forca' | 'destreza' | 'inteligencia' | 'defesa' | 'velocidade',
+        effectValue: 5,
+        duration: 3
     });
 
     useEffect(() => {
         loadRoom();
+
+        // Polling para atualizar dados da sala a cada 2 segundos
+        const pollInterval = setInterval(() => {
+            loadRoom();
+        }, 2000);
+
+        return () => clearInterval(pollInterval);
     }, [code]);
+
+    async function generateAbilityDescription() {
+        if (!newAbility.name) {
+            alert('Digite o nome da habilidade primeiro!');
+            return;
+        }
+
+        setIsGeneratingDescription(true);
+        try {
+            // Criar contexto baseado na configuração da habilidade
+            let context = `Tipo: ${newAbility.effectType === 'DAMAGE' ? 'Dano' : newAbility.effectType === 'HEAL' ? 'Cura' : newAbility.effectType === 'BUFF' ? 'Buff' : 'Debuff'}`;
+
+            if (newAbility.effectType === 'DAMAGE' || newAbility.effectType === 'HEAL') {
+                context += `\nDados: ${newAbility.diceCount}d${newAbility.diceType} + ${newAbility.baseDamage}`;
+                context += `\nEscala com: ${newAbility.scalingStat}`;
+            }
+
+            if (newAbility.effectType === 'BUFF' || newAbility.effectType === 'DEBUFF') {
+                context += `\nAfeta: ${newAbility.targetStat}`;
+                context += `\nValor: ${newAbility.effectValue}`;
+                context += `\nDuração: ${newAbility.duration} turnos`;
+            }
+
+            const res = await fetch('/api/ai/generate-description', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'ability',
+                    name: newAbility.name,
+                    context: context
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setNewAbility({ ...newAbility, description: data.description });
+            } else {
+                alert('Erro ao gerar descrição');
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Erro ao gerar descrição');
+        } finally {
+            setIsGeneratingDescription(false);
+        }
+    }
 
     async function loadRoom() {
         try {
@@ -190,7 +258,8 @@ export default function GMPage() {
             setLoading(false);
         } catch (e) {
             console.error("Erro ao carregar sala:", e);
-            router.push("/lobby");
+            // NÃO redirecionar - permite F5 sem perder a página
+            setLoading(false);
         }
     }
 
@@ -437,7 +506,15 @@ export default function GMPage() {
                     healing: 0,
                     buffValue: 0,
                     debuffValue: 0,
-                    protectionValue: 0
+                    protectionValue: 0,
+                    effectType: 'DAMAGE',
+                    baseDamage: 0,
+                    diceCount: 1,
+                    diceType: 6,
+                    scalingStat: 'inteligencia',
+                    targetStat: 'defesa',
+                    effectValue: 5,
+                    duration: 3
                 });
                 loadRoom();
                 console.log('✅ Habilidade criada com sucesso!');
@@ -797,11 +874,14 @@ export default function GMPage() {
                             </div>
                         ) : (
                             room.encounters.map(encounter => {
-                                // Ordenar TODOS os participantes por iniciativa (maior primeiro)
-                                const allParticipants = encounter.participants.sort((a, b) => b.initiative - a.initiative);
+                                // Ordenar TODOS os participantes por iniciativa (maior primeiro) e nome
+                                const allParticipants = encounter.participants.sort((a, b) => {
+                                    if (b.initiative !== a.initiative) return b.initiative - a.initiative;
+                                    return a.name.localeCompare(b.name);
+                                });
                                 const players = allParticipants.filter(p => !p.isNPC);
                                 const npcs = allParticipants.filter(p => p.isNPC);
-                                const currentTurn = encounter.isActive && allParticipants[(encounter as any).currentTurnIndex || 0];
+                                const currentTurn = encounter.isActive ? allParticipants[(encounter as any).currentTurnIndex || 0] : null;
 
                                 return (
                                     <div key={encounter.id} className="bg-neutral-900/50 backdrop-blur-xl border border-neutral-800/50 rounded-3xl p-6">
@@ -938,6 +1018,27 @@ export default function GMPage() {
                                                                 >
                                                                     + Status
                                                                 </button>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        if (!confirm(`Remover "${p.name}" deste encontro?`)) return;
+                                                                        try {
+                                                                            const res = await fetch(`/api/encounters/${encounter.id}/remove-participant`, {
+                                                                                method: 'POST',
+                                                                                headers: { 'Content-Type': 'application/json' },
+                                                                                body: JSON.stringify({ participantId: p.id })
+                                                                            });
+                                                                            if (res.ok) {
+                                                                                loadRoom();
+                                                                            }
+                                                                        } catch (e) {
+                                                                            console.error(e);
+                                                                        }
+                                                                    }}
+                                                                    className="text-xs px-2 py-1 bg-neutral-700/50 hover:bg-neutral-600/50 hover:text-red-400 text-neutral-400 rounded-lg transition-colors"
+                                                                    title="Remover participante"
+                                                                >
+                                                                    🗑️
+                                                                </button>
                                                             </div>
                                                         </div>
 
@@ -1025,6 +1126,27 @@ export default function GMPage() {
                                                                     className="text-xs px-2 py-1 bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 rounded-lg"
                                                                 >
                                                                     + Status
+                                                                </button>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        if (!confirm(`Remover "${p.name}" deste encontro?`)) return;
+                                                                        try {
+                                                                            const res = await fetch(`/api/encounters/${encounter.id}/remove-participant`, {
+                                                                                method: 'POST',
+                                                                                headers: { 'Content-Type': 'application/json' },
+                                                                                body: JSON.stringify({ participantId: p.id })
+                                                                            });
+                                                                            if (res.ok) {
+                                                                                loadRoom();
+                                                                            }
+                                                                        } catch (e) {
+                                                                            console.error(e);
+                                                                        }
+                                                                    }}
+                                                                    className="text-xs px-2 py-1 bg-neutral-700/50 hover:bg-neutral-600/50 hover:text-red-400 text-neutral-400 rounded-lg transition-colors"
+                                                                    title="Remover participante"
+                                                                >
+                                                                    🗑️
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -1248,12 +1370,32 @@ export default function GMPage() {
                                                     <div className="flex-1">
                                                         <p className="font-bold">{template.name}</p>
                                                         <p className="text-xs text-neutral-500">
-                                                            HP: {template.hp} | Força: {template.forca} | Destreza: {template.destreza}
+                                                            HP: {template.hp} | Força: {template.forca} | Lv: {template.level || 1}
                                                         </p>
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         {selected ? (
                                                             <>
+                                                                <div className="flex flex-col items-center mr-2">
+                                                                    <label className="text-[10px] text-neutral-400">Level</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="1"
+                                                                        className="w-12 h-6 bg-neutral-800 text-center text-xs rounded border border-neutral-600 focus:border-emerald-500 outline-none"
+                                                                        value={selected.level || 1}
+                                                                        onChange={(e) => {
+                                                                            const newLevel = Math.max(1, parseInt(e.target.value) || 1);
+                                                                            setSelectedMonsters(prev =>
+                                                                                prev.map(m =>
+                                                                                    m.templateId === template.id
+                                                                                        ? { ...m, level: newLevel }
+                                                                                        : m
+                                                                                )
+                                                                            );
+                                                                        }}
+                                                                    />
+                                                                </div>
+
                                                                 <button
                                                                     onClick={() => {
                                                                         setSelectedMonsters(prev =>
@@ -1299,7 +1441,12 @@ export default function GMPage() {
                                                                 onClick={() => {
                                                                     setSelectedMonsters(prev => [
                                                                         ...prev,
-                                                                        { templateId: template.id, name: template.name, count: 1 }
+                                                                        {
+                                                                            templateId: template.id,
+                                                                            name: template.name,
+                                                                            count: 1,
+                                                                            level: template.level || 1 // Inicializa com level do template
+                                                                        }
                                                                     ]);
                                                                 }}
                                                                 className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-sm font-semibold"
@@ -1539,12 +1686,35 @@ export default function GMPage() {
                             </div>
 
                             <div>
-                                <label className="block text-sm text-neutral-400 mb-2">Descrição</label>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="block text-sm text-neutral-400">Descrição</label>
+                                    <button
+                                        type="button"
+                                        onClick={generateAbilityDescription}
+                                        disabled={isGeneratingDescription || !newAbility.name}
+                                        className="px-3 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                    >
+                                        {isGeneratingDescription ? (
+                                            <>
+                                                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                                </svg>
+                                                Gerando...
+                                            </>
+                                        ) : (
+                                            <>
+                                                ✨ Gerar com IA
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
                                 <textarea
                                     value={newAbility.description}
                                     onChange={(e) => setNewAbility({ ...newAbility, description: e.target.value })}
                                     className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50 h-24"
                                     required
+                                    placeholder="Digite uma descrição ou use a IA..."
                                 />
                             </div>
 
@@ -1562,84 +1732,135 @@ export default function GMPage() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm text-neutral-400 mb-2">Tipo</label>
+                                    <label className="block text-sm text-neutral-400 mb-2">Tipo de Efeito</label>
                                     <select
-                                        value={newAbility.abilityType}
-                                        onChange={(e) => setNewAbility({ ...newAbility, abilityType: e.target.value as any })}
+                                        value={newAbility.effectType}
+                                        onChange={(e) => setNewAbility({ ...newAbility, effectType: e.target.value as any })}
                                         className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
                                     >
-                                        <option value="attack">Ataque</option>
-                                        <option value="heal">Cura</option>
-                                        <option value="buff">Buff</option>
-                                        <option value="debuff">Debuff</option>
-                                        <option value="protection">Proteção</option>
+                                        <option value="DAMAGE">💥 Dano</option>
+                                        <option value="HEAL">💚 Cura</option>
+                                        <option value="BUFF">⬆️ Buff</option>
+                                        <option value="DEBUFF">⬇️ Debuff</option>
                                     </select>
                                 </div>
                             </div>
 
-                            {/* Conditional Fields Based on Type */}
-                            {newAbility.abilityType === 'attack' && (
-                                <div>
-                                    <label className="block text-sm text-neutral-400 mb-2">Dano</label>
-                                    <input
-                                        type="number"
-                                        value={newAbility.damage}
-                                        onChange={(e) => setNewAbility({ ...newAbility, damage: parseInt(e.target.value) })}
-                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
-                                        min="0"
-                                    />
+                            {/* Configuração de Dados (para DAMAGE e HEAL) */}
+                            {(newAbility.effectType === 'DAMAGE' || newAbility.effectType === 'HEAL') && (
+                                <div className="space-y-4 p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl">
+                                    <h3 className="font-bold text-purple-300">🎲 Configuração de Dano/Cura</h3>
+
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-sm text-neutral-400 mb-2">Quantidade de Dados</label>
+                                            <input
+                                                type="number"
+                                                value={newAbility.diceCount}
+                                                onChange={(e) => setNewAbility({ ...newAbility, diceCount: parseInt(e.target.value) })}
+                                                className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                                min="1"
+                                                max="10"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm text-neutral-400 mb-2">Tipo de Dado</label>
+                                            <select
+                                                value={newAbility.diceType}
+                                                onChange={(e) => setNewAbility({ ...newAbility, diceType: parseInt(e.target.value) })}
+                                                className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                            >
+                                                <option value="4">d4</option>
+                                                <option value="6">d6</option>
+                                                <option value="8">d8</option>
+                                                <option value="10">d10</option>
+                                                <option value="12">d12</option>
+                                                <option value="20">d20</option>
+                                                <option value="100">d100</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm text-neutral-400 mb-2">Dano Base</label>
+                                            <input
+                                                type="number"
+                                                value={newAbility.baseDamage}
+                                                onChange={(e) => setNewAbility({ ...newAbility, baseDamage: parseInt(e.target.value) })}
+                                                className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                                min="0"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm text-neutral-400 mb-2">Escala com Atributo</label>
+                                        <select
+                                            value={newAbility.scalingStat}
+                                            onChange={(e) => setNewAbility({ ...newAbility, scalingStat: e.target.value as any })}
+                                            className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                        >
+                                            <option value="forca">💪 Força</option>
+                                            <option value="destreza">🏹 Destreza</option>
+                                            <option value="inteligencia">🧠 Inteligência</option>
+                                        </select>
+                                    </div>
+
+                                    <p className="text-xs text-neutral-500">
+                                        Fórmula: {newAbility.diceCount}d{newAbility.diceType} + {newAbility.baseDamage} + {newAbility.scalingStat.toUpperCase()}
+                                    </p>
                                 </div>
                             )}
 
-                            {newAbility.abilityType === 'heal' && (
-                                <div>
-                                    <label className="block text-sm text-neutral-400 mb-2">Cura</label>
-                                    <input
-                                        type="number"
-                                        value={newAbility.healing}
-                                        onChange={(e) => setNewAbility({ ...newAbility, healing: parseInt(e.target.value) })}
-                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
-                                        min="0"
-                                    />
-                                </div>
-                            )}
+                            {/* Configuração de BUFF/DEBUFF */}
+                            {(newAbility.effectType === 'BUFF' || newAbility.effectType === 'DEBUFF') && (
+                                <div className="space-y-4 p-4 bg-blue-900/20 border border-blue-500/30 rounded-xl">
+                                    <h3 className="font-bold text-blue-300">
+                                        {newAbility.effectType === 'BUFF' ? '⬆️ Configuração de Buff' : '⬇️ Configuração de Debuff'}
+                                    </h3>
 
-                            {newAbility.abilityType === 'buff' && (
-                                <div>
-                                    <label className="block text-sm text-neutral-400 mb-2">Valor do Buff</label>
-                                    <input
-                                        type="number"
-                                        value={newAbility.buffValue}
-                                        onChange={(e) => setNewAbility({ ...newAbility, buffValue: parseInt(e.target.value) })}
-                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
-                                        min="0"
-                                    />
-                                </div>
-                            )}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm text-neutral-400 mb-2">Atributo Afetado</label>
+                                            <select
+                                                value={newAbility.targetStat}
+                                                onChange={(e) => setNewAbility({ ...newAbility, targetStat: e.target.value as any })}
+                                                className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                            >
+                                                <option value="forca">💪 Força</option>
+                                                <option value="destreza">🏹 Destreza</option>
+                                                <option value="inteligencia">🧠 Inteligência</option>
+                                                <option value="defesa">🛡️ Defesa</option>
+                                                <option value="velocidade">⚡ Velocidade</option>
+                                            </select>
+                                        </div>
 
-                            {newAbility.abilityType === 'debuff' && (
-                                <div>
-                                    <label className="block text-sm text-neutral-400 mb-2">Valor do Debuff</label>
-                                    <input
-                                        type="number"
-                                        value={newAbility.debuffValue}
-                                        onChange={(e) => setNewAbility({ ...newAbility, debuffValue: parseInt(e.target.value) })}
-                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
-                                        min="0"
-                                    />
-                                </div>
-                            )}
+                                        <div>
+                                            <label className="block text-sm text-neutral-400 mb-2">Valor do Efeito</label>
+                                            <input
+                                                type="number"
+                                                value={newAbility.effectValue}
+                                                onChange={(e) => setNewAbility({ ...newAbility, effectValue: parseInt(e.target.value) })}
+                                                className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                                min="1"
+                                            />
+                                        </div>
+                                    </div>
 
-                            {newAbility.abilityType === 'protection' && (
-                                <div>
-                                    <label className="block text-sm text-neutral-400 mb-2">Valor da Proteção</label>
-                                    <input
-                                        type="number"
-                                        value={newAbility.protectionValue}
-                                        onChange={(e) => setNewAbility({ ...newAbility, protectionValue: parseInt(e.target.value) })}
-                                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
-                                        min="0"
-                                    />
+                                    <div>
+                                        <label className="block text-sm text-neutral-400 mb-2">Duração (turnos)</label>
+                                        <input
+                                            type="number"
+                                            value={newAbility.duration}
+                                            onChange={(e) => setNewAbility({ ...newAbility, duration: parseInt(e.target.value) })}
+                                            className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-purple-500/50"
+                                            min="1"
+                                            max="10"
+                                        />
+                                    </div>
+
+                                    <p className="text-xs text-neutral-500">
+                                    </p>
                                 </div>
                             )}
 

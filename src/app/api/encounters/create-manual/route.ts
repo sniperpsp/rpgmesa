@@ -44,15 +44,30 @@ export async function POST(request: Request) {
                 // Rolar iniciativa: d20
                 const initiativeRoll = Math.floor(Math.random() * 20) + 1;
 
+                // Calcular Scaling de Level
+                // Se o usuário definiu um level específico, usa ele. Se não, usa o do template.
+                const baseLevel = template.level || 1;
+                const targetLevel = monsterSelection.level ? parseInt(monsterSelection.level) : baseLevel;
+
+                // Fator de crescimento: 20% (0.2) por level de diferença
+                // Se Target = 2 e Base = 1, diferença = 1 -> Aumento de 20%
+                const levelDiff = Math.max(0, targetLevel - baseLevel);
+                const scalingFactor = 1 + (levelDiff * 0.20);
+
+                const finalHp = Math.floor(template.hp * scalingFactor);
+                const finalMana = Math.floor((template.mana || 0) * scalingFactor);
+
                 npcParticipants.push({
                     name: `${template.name} ${i + 1}`,
-                    hp: template.hp,
-                    maxHp: template.hp,
-                    mana: template.mana || 0,
-                    maxMana: template.mana || 0,
+                    hp: finalHp,
+                    maxHp: finalHp,
+                    mana: finalMana,
+                    maxMana: finalMana,
                     initiative: initiativeRoll,
                     isNPC: true,
-                    statusEffects: []
+                    statusEffects: [],
+                    // CRÍTICO: Usar o level alvo para cálculo de XP
+                    level: targetLevel
                 });
             }
         }

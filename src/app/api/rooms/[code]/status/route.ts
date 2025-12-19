@@ -4,6 +4,8 @@ import { sessionOptions, SessionData } from '@/lib/session';
 import { cookies } from 'next/headers';
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/rooms/[code]/status - Endpoint LEVE para polling
 export async function GET(
     request: Request,
@@ -25,7 +27,10 @@ export async function GET(
                     where: { isActive: true },
                     include: {
                         participants: {
-                            orderBy: { initiative: 'desc' }
+                            orderBy: [
+                                { initiative: 'desc' },
+                                { name: 'asc' }
+                            ]
                         }
                     }
                 }

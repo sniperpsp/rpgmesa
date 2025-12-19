@@ -30,6 +30,81 @@ export default function TemplatesPage() {
     const [counts, setCounts] = useState({
         classes: 0, races: 0, abilities: 0, weapons: 0, items: 0, monsters: 0
     });
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+    // Lógica para calcular stats de habilidade
+    function calculateAbilityStats(type: string, rarity: string) {
+        let diceCount = 1;
+        let diceType = 6;
+        let baseDamage = 0;
+        let manaCost = 3;
+        let effectValue = 2;
+        let duration = 2;
+
+        switch (rarity) {
+            case 'comum':
+                diceCount = 1; diceType = 6; baseDamage = 0; manaCost = 3;
+                effectValue = 2; duration = 2;
+                break;
+            case 'incomum':
+                diceCount = 1; diceType = 8; baseDamage = 2; manaCost = 5;
+                effectValue = 3; duration = 3;
+                break;
+            case 'raro':
+                diceCount = 2; diceType = 6; baseDamage = 4; manaCost = 8;
+                effectValue = 5; duration = 3;
+                break;
+            case 'épico':
+                diceCount = 4; diceType = 6; baseDamage = 8; manaCost = 15;
+                effectValue = 8; duration = 4;
+                break;
+            case 'lendário':
+                diceCount = 4; diceType = 8; baseDamage = 12; manaCost = 20;
+                effectValue = 12; duration = 5;
+                break;
+        }
+
+        return { diceCount, diceType, baseDamage, manaCost, effectValue, duration };
+    }
+
+    // Auto-cálculo de stats quando raridade muda (apenas para habilidades)
+    useEffect(() => {
+        if (activeTab === 'abilities' && modalMode === 'create' && formData.rarity) {
+            const stats = calculateAbilityStats(formData.effectType || 'DAMAGE', formData.rarity);
+            setFormData(prev => ({ ...prev, ...stats }));
+        }
+    }, [formData.rarity, formData.effectType, activeTab, modalMode]);
+
+    const analyzeAbility = async () => {
+        if (!formData.name) return;
+        setIsAnalyzing(true);
+        try {
+            const res = await fetch('/api/ai/analyze-ability', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: formData.name })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setFormData(prev => ({
+                    ...prev,
+                    rarity: data.rarity || 'comum',
+                    effectType: data.effectType || 'DAMAGE',
+                    scalingStat: data.scalingStat || 'forca',
+                    targetStat: data.targetStat || 'defesa',
+                    description: data.description || prev.description
+                }));
+            } else {
+                alert("Erro ao analisar habilidade.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Erro de conexão.");
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
 
     // Derivar storyTypes únicos dos templates
     const storyTypes = Array.from(new Set(templates.map(t => t.storyType).filter(Boolean)));
@@ -122,7 +197,20 @@ export default function TemplatesPage() {
             case 'races':
                 return { ...base, modHp: 0, modMana: 0, modForca: 0, modDestreza: 0, modInteligencia: 0, modDefesa: 0, modVelocidade: 0 };
             case 'abilities':
-                return { ...base, manaCost: 0, rarity: 'comum', school: '' };
+                return {
+                    ...base,
+                    manaCost: 3,
+                    rarity: 'comum',
+                    school: '',
+                    effectType: 'DAMAGE',
+                    diceCount: 1,
+                    diceType: 6,
+                    baseDamage: 0,
+                    effectValue: 0,
+                    duration: 1,
+                    scalingStat: 'forca',
+                    targetStat: 'defesa'
+                };
             case 'weapons':
                 return {
                     ...base,
@@ -360,13 +448,23 @@ export default function TemplatesPage() {
             <div className="space-y-4">
                 <div>
                     <label className="block text-sm text-neutral-400 mb-2">Nome *</label>
-                    <input
-                        type="text"
-                        value={formData.name || ''}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-blue-500/50"
-                        placeholder="Nome do template"
-                    />
+                    <div className="flex gap-2">
+                        <input
+                            type="text"
+                            value={formData.name || ''}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            className="flex-1 px-4 py-3 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-blue-500/50"
+                            placeholder="Nome do template"
+                        />
+                        <button
+                            onClick={analyzeAbility}
+                            disabled={isAnalyzing || !formData.name}
+                            className="px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:from-neutral-800 disabled:to-neutral-800 disabled:text-neutral-500 text-white rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-purple-900/20"
+                            title="Preencher automaticamente com IA"
+                        >
+                            {isAnalyzing ? <span className="animate-spin">⏳</span> : '✨ Auto'}
+                        </button>
+                    </div>
                 </div>
                 <div>
                     <div className="flex justify-between items-center mb-2">
@@ -504,12 +602,21 @@ export default function TemplatesPage() {
                 )}
 
                 {activeTab === 'abilities' && (
-                    <>
-                        <div>
-                            <label className="block text-sm text-neutral-400 mb-2">Custo de Mana</label>
-                            <input type="number" value={formData.manaCost || 0} onChange={(e) => setFormData({ ...formData, manaCost: parseInt(e.target.value) })} className="w-full px-4 py-2 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-blue-500/50" />
-                        </div>
+                    <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-sm text-neutral-400 mb-2">Tipo de Efeito</label>
+                                <select
+                                    value={formData.effectType || 'DAMAGE'}
+                                    onChange={(e) => setFormData({ ...formData, effectType: e.target.value })}
+                                    className="w-full px-4 py-2 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-blue-500/50"
+                                >
+                                    <option value="DAMAGE">💥 Dano</option>
+                                    <option value="HEAL">💚 Cura</option>
+                                    <option value="BUFF">⬆️ Buff</option>
+                                    <option value="DEBUFF">⬇️ Debuff</option>
+                                </select>
+                            </div>
                             <div>
                                 <label className="block text-sm text-neutral-400 mb-2">Raridade</label>
                                 <select value={formData.rarity || 'comum'} onChange={(e) => setFormData({ ...formData, rarity: e.target.value })} className="w-full px-4 py-2 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-blue-500/50">
@@ -520,12 +627,77 @@ export default function TemplatesPage() {
                                     <option value="lendário">Lendário</option>
                                 </select>
                             </div>
-                            <div>
-                                <label className="block text-sm text-neutral-400 mb-2">Escola de Magia</label>
-                                <input type="text" value={formData.school || ''} onChange={(e) => setFormData({ ...formData, school: e.target.value })} className="w-full px-4 py-2 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 focus:outline-none focus:border-blue-500/50" placeholder="Ex: Evocação" />
+                        </div>
+
+                        {/* Configuração Automática (Read Only) */}
+                        <div className="bg-neutral-800/30 p-4 rounded-xl border border-neutral-800">
+                            <h4 className="flex items-center gap-2 text-xs font-bold text-neutral-500 uppercase mb-3">
+                                ⚙️ Configuração Automática (Baseada na Raridade)
+                            </h4>
+                            <div className="grid grid-cols-3 gap-4 text-center">
+                                <div>
+                                    <p className="text-[10px] text-neutral-500 uppercase tracking-wider">Custo Mana</p>
+                                    <p className="text-xl font-bold text-blue-400">{formData.manaCost} <span className="text-xs text-neutral-500">MP</span></p>
+                                </div>
+                                {(formData.effectType === 'DAMAGE' || formData.effectType === 'HEAL') ? (
+                                    <>
+                                        <div>
+                                            <p className="text-[10px] text-neutral-500 uppercase tracking-wider">Dados</p>
+                                            <p className="text-xl font-bold text-purple-400">{formData.diceCount}d{formData.diceType}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-neutral-500 uppercase tracking-wider">Base</p>
+                                            <p className="text-xl font-bold text-emerald-400">+{formData.baseDamage}</p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div>
+                                            <p className="text-[10px] text-neutral-500 uppercase tracking-wider">Valor</p>
+                                            <p className="text-xl font-bold text-yellow-400">{formData.effectValue}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-neutral-500 uppercase tracking-wider">Duração</p>
+                                            <p className="text-xl font-bold text-orange-400">{formData.duration} <span className="text-xs text-neutral-500">turnos</span></p>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            <div className="mt-4 pt-4 border-t border-neutral-700/50 grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs text-neutral-500 mb-1">Escala Com</label>
+                                    <select
+                                        value={formData.scalingStat || 'forca'}
+                                        onChange={(e) => setFormData({ ...formData, scalingStat: e.target.value })}
+                                        className="w-full px-2 py-1 bg-neutral-900 border border-neutral-700 rounded text-sm text-neutral-300"
+                                    >
+                                        <option value="forca">Força (Físico)</option>
+                                        <option value="destreza">Destreza (Ágil)</option>
+                                        <option value="inteligencia">Inteligência (Mágico)</option>
+                                    </select>
+                                </div>
+                                {(formData.effectType === 'BUFF' || formData.effectType === 'DEBUFF') && (
+                                    <div>
+                                        <label className="block text-xs text-neutral-500 mb-1">Atributo Alvo</label>
+                                        <select
+                                            value={formData.targetStat || 'defesa'}
+                                            onChange={(e) => setFormData({ ...formData, targetStat: e.target.value })}
+                                            className="w-full px-2 py-1 bg-neutral-900 border border-neutral-700 rounded text-sm text-neutral-300"
+                                        >
+                                            <option value="vida">Vida</option>
+                                            <option value="mana">Mana</option>
+                                            <option value="forca">Força</option>
+                                            <option value="destreza">Destreza</option>
+                                            <option value="inteligencia">Inteligência</option>
+                                            <option value="defesa">Defesa</option>
+                                            <option value="velocidade">Velocidade</option>
+                                        </select>
+                                    </div>
+                                )}
                             </div>
                         </div>
-                    </>
+                    </div>
                 )}
 
                 {activeTab === 'weapons' && (

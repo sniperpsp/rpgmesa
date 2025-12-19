@@ -4,6 +4,8 @@ import { sessionOptions, SessionData } from '@/lib/session';
 import { cookies } from 'next/headers';
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/rooms/[code]
 export async function GET(
     request: Request,

@@ -1,30 +1,58 @@
 import { NextResponse } from "next/server";
+import { getIronSession } from 'iron-session';
+import { sessionOptions, SessionData } from '@/lib/session';
+import { cookies } from 'next/headers';
 import { prisma } from "@/lib/prisma";
 
+// Rola dados (XdY)
+function rollDice(count: number, sides: number): { rolls: number[], total: number } {
+    const rolls: number[] = [];
+    for (let i = 0; i < count; i++) {
+        rolls.push(Math.floor(Math.random() * sides) + 1);
+    }
+    return {
+        rolls,
+        total: rolls.reduce((sum, roll) => sum + roll, 0)
+    };
+}
+
+// POST /api/combat/use-ability - Usa uma habilidade em combate
 export async function POST(request: Request) {
+    const session = await getIronSession<SessionData>(await cookies(), sessionOptions);
+    if (!session.isLoggedIn || !session.userId) {
+        return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+    }
+
     try {
         const { encounterId, userId, abilityId, targetId } = await request.json();
 
-        // Buscar encontro
+        // Buscar encontro e participantes
         const encounter = await prisma.encounter.findUnique({
             where: { id: encounterId },
-            include: { participants: true }
+            include: {
+                participants: true,
+                room: {
+                    include: {
+                        characterRooms: {
+                            include: {
+                                roomStats: true,
+                                character: true
+                            }
+                        }
+                    }
+                }
+            }
         });
 
         if (!encounter) {
             return NextResponse.json({ error: "Encontro não encontrado" }, { status: 404 });
         }
 
-        // Buscar usuário (quem está usando a habilidade)
-        const userParticipant = encounter.participants.find(p => p.id === userId);
-        if (!userParticipant) {
-            return NextResponse.json({ error: "Participante não encontrado" }, { status: 404 });
-        }
-
-        // Buscar alvo
+        const caster = encounter.participants.find(p => p.id === userId);
         const target = encounter.participants.find(p => p.id === targetId);
-        if (!target) {
-            return NextResponse.json({ error: "Alvo não encontrado" }, { status: 404 });
+
+        if (!caster || !target) {
+            return NextResponse.json({ error: "Participante não encontrado" }, { status: 404 });
         }
 
         // Buscar habilidade
@@ -37,89 +65,106 @@ export async function POST(request: Request) {
         }
 
         // Verificar mana
-        if (userParticipant.mana < ability.manaCost) {
+        if (caster.mana < ability.manaCost) {
             return NextResponse.json({ error: "Mana insuficiente" }, { status: 400 });
         }
 
-        // Consumir mana
-        const newMana = Math.max(0, userParticipant.mana - ability.manaCost);
-        await prisma.encounterParticipant.update({
-            where: { id: userId },
-            data: { mana: newMana }
-        });
+        // Rolar dados
+        const diceCount = ability.diceCount || 1;
+        const diceType = ability.diceType || 6;
+        const diceRoll = rollDice(diceCount, diceType);
 
-        let message = "";
-        let newHp = target.hp;
-        let newManaTarget = target.mana;
+        // Calcular modificador baseado no stat
+        let statModifier = 0;
+        if (ability.scalingStat) {
+            const casterCharRoom = encounter.room.characterRooms.find(
+                cr => cr.character.name === caster.name
+            );
+            if (casterCharRoom?.roomStats) {
+                statModifier = (casterCharRoom.roomStats as any)[ability.scalingStat] || 0;
+            }
+        }
 
-        // Aplicar efeito baseado no tipo
-        switch (ability.abilityType) {
-            case 'attack':
-                // Dano baseado na inteligência do usuário
-                const damage = Math.floor(Math.random() * 6) + 1 + (userParticipant.inteligencia || 3);
-                newHp = Math.max(0, target.hp - damage);
-                message = `${userParticipant.name} usou ${ability.name} e causou ${damage} de dano em ${target.name}!`;
+        const totalValue = diceRoll.total + statModifier + (ability.baseDamage || 0);
+
+        let result: any = {
+            abilityName: ability.name,
+            casterName: caster.name,
+            targetName: target.name,
+            diceRolls: diceRoll.rolls,
+            diceTotal: diceRoll.total,
+            modifier: statModifier,
+            baseDamage: ability.baseDamage || 0,
+            totalValue,
+            effectType: ability.effectType
+        };
+
+        // Aplicar efeito baseado no effectType (NOVO SISTEMA)
+        switch (ability.effectType) {
+            case 'DAMAGE':
+                const newHp = Math.max(0, target.hp - totalValue);
+                await prisma.encounterParticipant.update({
+                    where: { id: targetId },
+                    data: { hp: newHp }
+                });
+                result.newHp = newHp;
+                result.damage = totalValue;
                 break;
 
-            case 'heal':
-                // Cura baseada na inteligência
-                const healing = Math.floor(Math.random() * 8) + 1 + (userParticipant.inteligencia || 3);
-                newHp = Math.min(target.maxHp, target.hp + healing);
-                message = `${userParticipant.name} usou ${ability.name} e curou ${healing} HP de ${target.name}!`;
+            case 'HEAL':
+                const healedHp = Math.min(target.maxHp, target.hp + totalValue);
+                await prisma.encounterParticipant.update({
+                    where: { id: targetId },
+                    data: { hp: healedHp }
+                });
+                result.newHp = healedHp;
+                result.healing = totalValue;
                 break;
 
-            case 'buff':
-                // Buff temporário (pode ser implementado com status effects no futuro)
-                message = `${userParticipant.name} usou ${ability.name} em ${target.name}! ${ability.description || 'Efeito aplicado!'}`;
-                break;
+            case 'BUFF':
+            case 'DEBUFF':
+                const activeEffects = (target as any).activeEffects || [];
+                const newEffect = {
+                    name: ability.name,
+                    type: ability.effectType,
+                    stat: ability.targetStat,
+                    value: ability.effectValue,
+                    turnsRemaining: ability.duration || 1,
+                    sourceId: userId,
+                    sourceName: caster.name
+                };
+                activeEffects.push(newEffect);
 
-            case 'debuff':
-                // Debuff temporário
-                message = `${userParticipant.name} usou ${ability.name} em ${target.name}! ${ability.description || 'Efeito aplicado!'}`;
-                break;
+                await prisma.encounterParticipant.update({
+                    where: { id: targetId },
+                    data: { activeEffects }
+                });
 
-            case 'protection':
-                // Proteção temporária
-                message = `${userParticipant.name} usou ${ability.name} em ${target.name}! ${ability.description || 'Proteção ativada!'}`;
+                result.effectApplied = newEffect;
                 break;
 
             default:
-                // Efeito genérico
-                message = `${userParticipant.name} usou ${ability.name} em ${target.name}!`;
+                // Sem effectType definido - não faz nada
+                result.message = "Habilidade sem efeito configurado (effectType)";
+                break;
         }
 
-        // Atualizar HP do alvo se mudou
-        if (newHp !== target.hp) {
-            await prisma.encounterParticipant.update({
-                where: { id: targetId },
-                data: { hp: newHp }
-            });
-        }
+        // Consumir mana
+        await prisma.encounterParticipant.update({
+            where: { id: userId },
+            data: { mana: caster.mana - ability.manaCost }
+        });
 
-        // Criar log de combate
+        // Registrar no log
         await prisma.eventsLog.create({
             data: {
                 roomId: encounter.roomId,
-                action: 'combat_log',
-                payload: {
-                    encounterId,
-                    message,
-                    type: ability.abilityType || 'ability'
-                }
+                action: 'ability_used',
+                payload: result as any
             }
         });
 
-        return NextResponse.json({
-            success: true,
-            message,
-            result: {
-                abilityName: ability.name,
-                user: userParticipant.name,
-                target: target.name,
-                newUserMana: newMana,
-                newTargetHp: newHp
-            }
-        });
+        return NextResponse.json({ success: true, result });
 
     } catch (e) {
         console.error("Erro ao usar habilidade:", e);
