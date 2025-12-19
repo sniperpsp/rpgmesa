@@ -87,7 +87,7 @@ export default function TemplatesPage() {
 
             if (res.ok) {
                 const data = await res.json();
-                setFormData(prev => ({
+                setFormData((prev: any) => ({
                     ...prev,
                     rarity: data.rarity || 'comum',
                     effectType: data.effectType || 'DAMAGE',
