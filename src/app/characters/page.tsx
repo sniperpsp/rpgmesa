@@ -858,8 +858,9 @@ export default function CharactersPage() {
                                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
                                     <div className="flex-shrink-0 relative w-32 h-32">
                                         {(generatingPreview || (previewAvatar && imageLoading)) && (
-                                            <div className="absolute inset-0 z-10 bg-neutral-800/50 rounded-xl border-2 border-dashed border-indigo-500/30 flex items-center justify-center backdrop-blur-sm">
+                                            <div className="absolute inset-0 z-10 bg-neutral-800/80 rounded-xl border-2 border-dashed border-indigo-500/30 flex flex-col items-center justify-center backdrop-blur-sm gap-2">
                                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                                                <span className="text-[10px] text-indigo-300 font-medium animate-pulse">Gerando...</span>
                                             </div>
                                         )}
 
