@@ -322,6 +322,7 @@ export default function CharactersPage() {
         }
 
         setGeneratingPreview(true);
+        setPreviewAvatar(null); // Limpar anterior para mostrar loading
         try {
             // Chamar API para gerar preview
             const res = await fetch("/api/characters/preview-avatar", {
@@ -854,12 +855,16 @@ export default function CharactersPage() {
                             <div className="bg-gradient-to-r from-indigo-900/20 to-purple-900/20 border border-indigo-500/30 rounded-xl p-4">
                                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
                                     <div className="flex-shrink-0">
-                                        {previewAvatar ? (
+                                        {previewAvatar && !generatingPreview ? (
                                             <img
                                                 src={previewAvatar}
                                                 alt="Novo Avatar"
                                                 className="w-32 h-32 rounded-xl object-cover border-2 border-indigo-500/50"
                                             />
+                                        ) : generatingPreview ? (
+                                            <div className="w-32 h-32 rounded-xl bg-neutral-800/50 border-2 border-dashed border-indigo-500/30 flex items-center justify-center">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                                            </div>
                                         ) : editingChar?.avatarUrl ? (
                                             <img
                                                 src={editingChar.avatarUrl}
