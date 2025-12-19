@@ -16,7 +16,9 @@ interface AttackResult {
     hit: boolean;
     critical: boolean;
     damage: number;
+
     remainingHp: number;
+    xpGained?: number;
 }
 
 export async function POST(request: Request) {
@@ -58,6 +60,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Participante não encontrado" }, { status: 404 });
         }
 
+        let xpGainedByAttacker = 0;
+
         let newHp = target.hp;
         let finalDamage = 0;
 
@@ -92,16 +96,27 @@ export async function POST(request: Request) {
             // Se o NPC morreu (HP <= 0), distribuir XP
             if (newHp <= 0 && target.isNPC) {
                 const npcLevel = (target as any).level || 1;
-                const xpReward = (target as any).xpReward || npcLevel * npcLevel * 10;
+                // FORÇAR CÁLCULO: Ignorar valor do banco se possível, para garantir consistência com UI
+                // O valor do banco (xpReward) pode ser 10 (default), então recalculamos.
+                const xpReward = npcLevel * npcLevel * 10;
+
 
                 console.log('💀 NPC morreu! Distribuindo XP:', { npcName: target.name, xpReward, damageReceived });
 
                 // Calcular XP proporcional para cada jogador que causou dano
                 const totalDamage = Object.values(damageReceived).reduce((sum: number, d: any) => sum + d, 0) as number;
 
+                // Encontrar o CharRoomId do atacante a partir do nome
+                const attackerCharRoom = encounter.room.characterRooms.find(cr => cr.character.name === attacker.name);
+                const attackerCharRoomId = attackerCharRoom?.id;
+
                 for (const [charRoomId, dmg] of Object.entries(damageReceived)) {
                     const proportion = (dmg as number) / totalDamage;
                     const xpGrant = Math.floor(xpReward * proportion);
+
+                    if (charRoomId === attackerCharRoomId) {
+                        xpGainedByAttacker = xpGrant;
+                    }
 
                     console.log('🎯 Distribuindo XP:', { charRoomId, dmg, proportion, xpGrant });
 
@@ -153,7 +168,8 @@ export async function POST(request: Request) {
             hit: hit || false,
             critical: isCritical || false,
             damage: finalDamage,
-            remainingHp: newHp
+            remainingHp: newHp,
+            xpGained: xpGainedByAttacker
         };
 
         // Registrar no log de eventos

@@ -86,6 +86,8 @@ export async function POST(request: Request) {
 
         // Calcular modificador baseado no stat
         let statModifier = modifier || 0;
+        let xpGainedByAttacker = 0; // Escopo global da função para ser acessado no retorno
+
         if (ability.scalingStat && !modifier) {
             const casterCharRoom = encounter.room.characterRooms.find(
                 cr => cr.character.name === caster.name
@@ -116,7 +118,9 @@ export async function POST(request: Request) {
             effectType: ability.effectType,
             attackRoll,
             hit,
-            isCritical
+            isCritical,
+            message: `Habilidade ${ability.name} usada com sucesso!`,
+            xpGained: 0 // Will be updated if NPC dies
         };
 
         // Aplicar efeito baseado no tipo
@@ -159,15 +163,24 @@ export async function POST(request: Request) {
                 // Se matou NPC, distribuir XP
                 if (newHp <= 0 && target.isNPC) {
                     const npcLevel = (target as any).level || 1;
-                    const xpReward = (target as any).xpReward || npcLevel * npcLevel * 10;
+                    // FORÇAR CÁLCULO: Garantir consistência com UI
+                    const xpReward = npcLevel * npcLevel * 10;
 
                     console.log('💀 NPC morreu! (Habilidade) Distribuindo XP:', { npcName: target.name, xpReward, damageReceived });
 
                     const totalDamage = Object.values(damageReceived).reduce((sum: number, d: any) => sum + d, 0) as number;
 
+                    // Encontrar o CharRoomId do caster
+                    const casterCharRoom = encounter.room.characterRooms.find(cr => cr.character.name === caster.name);
+                    const casterCharRoomId = casterCharRoom?.id;
+
                     for (const [charRoomId, dmg] of Object.entries(damageReceived)) {
                         const proportion = (dmg as number) / totalDamage;
                         const xpGrant = Math.floor(xpReward * proportion);
+
+                        if (charRoomId === casterCharRoomId) {
+                            xpGainedByAttacker = xpGrant;
+                        }
 
                         console.log('🎯 Distribuindo XP (Habilidade):', { charRoomId, dmg, proportion, xpGrant });
 

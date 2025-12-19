@@ -48,6 +48,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         Regras:
         1. Crie apenas UM ato (o próximo).
         2. Inclua sugestão de combate E/OU puzzle baseados na nova situação.
+           - PUZZLE: Deve ser ÚNICO e CRIATIVO. Evite clichês. Desafie a inteligência dos jogadores, não apenas rolagem de dados.
         3. Para os monstros, use stats numéricos apropriados:
            - hp: 10-50, mana: 0-30, forca: 2-6, destreza: 2-6
            - inteligencia: 1-5, defesa: 2-5, velocidade: 2-6, level: 1-5
@@ -64,9 +65,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
                     ]
                 },
                 "puzzle": {
-                    "name": "Nome",
-                    "description": "...",
-                    "solution": "..."
+                    "name": "Nome Criativo",
+                    "description": "Descrição detalhada do desafio lógico/físico/social. Evite 'encontrar chaves'. Use runas, alavancas, enigmas ou negociação.",
+                    "solution": "Solução clara para o Mestre."
                 }
             }
         }

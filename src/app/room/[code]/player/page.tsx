@@ -69,6 +69,7 @@ interface Room {
             initiative: number;
             isNPC: boolean;
             statusEffects: any;
+            level?: number;
         }>;
     }>;
 }
@@ -126,11 +127,7 @@ export default function PlayerPage() {
     // IMPORTANTE: Não atualiza se for a vez do jogador (evita refresh durante ação)
     async function loadCombatStatus() {
         // Se é minha vez, NÃO atualizar (evita refresh irritante durante combate)
-        // Usar REF porque state pode estar desatualizado no setInterval
-        if (isMyTurnRef.current) {
-            console.log('⏸️ Polling pausado - é minha vez');
-            return;
-        }
+
 
         try {
             const res = await fetch(`/api/rooms/${code}/status?t=${Date.now()}`, { cache: 'no-store' });
@@ -334,7 +331,7 @@ export default function PlayerPage() {
         }
     }
 
-    if (loading) {
+    if (loading && !room) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950 flex items-center justify-center">
                 <LoadingSpinner text="Carregando sala" size="lg" />
@@ -692,7 +689,15 @@ export default function PlayerPage() {
                                                     <div key={enemy.id} className="p-3 bg-red-950/30 border border-red-500/30 rounded-xl">
                                                         <div className="flex justify-between items-center">
                                                             <div>
-                                                                <p className="font-bold">{enemy.name}</p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="font-bold">{enemy.name}</p>
+                                                                    <span className="text-xs px-1.5 py-0.5 bg-red-900/50 border border-red-700 rounded text-red-300">
+                                                                        Lv {enemy.level || 1}
+                                                                    </span>
+                                                                    <span className="text-xs px-1.5 py-0.5 bg-yellow-900/30 border border-yellow-700/50 rounded text-yellow-500/80 font-mono" title="XP Recompensado">
+                                                                        +{(enemy.level || 1) * (enemy.level || 1) * 10} XP
+                                                                    </span>
+                                                                </div>
                                                                 <p className="text-xs text-neutral-500">
                                                                     HP: {enemy.hp}/{enemy.maxHp}
                                                                 </p>
@@ -917,6 +922,13 @@ export default function PlayerPage() {
                             if (res.ok) {
                                 const data = await res.json();
                                 console.log('✅ Ataque executado com sucesso:', data);
+
+                                // Notificar XP ganho
+                                const gainedXp = data.xpGained || data.result?.xpGained;
+                                if (gainedXp > 0) {
+                                    setTimeout(() => alert(`🎉 VIITÓRIA! Você ganhou ${gainedXp} XP!`), 500);
+                                    loadRoom();
+                                }
 
                                 // Mostrar resultado da habilidade
                                 if (attackType === 'magic' && data.result) {

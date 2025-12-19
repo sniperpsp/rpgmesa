@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 
 interface StatusEffect {
@@ -19,6 +19,7 @@ interface Participant {
     initiative: number;
     isNPC: boolean;
     statusEffects: StatusEffect[] | null;
+    level?: number;
 }
 
 interface Room {
@@ -57,6 +58,11 @@ interface Room {
             inteligencia: number;
             defesa: number;
             velocidade: number;
+            // XP System
+            xp: number;
+            xpToNextLevel: number;
+            level: number;
+            statPoints: number;
         } | null;
         roomAbilities: Array<{
             id: string;
@@ -98,7 +104,19 @@ export default function GMPage() {
 
     const [loading, setLoading] = useState(true);
     const [room, setRoom] = useState<Room | null>(null);
-    const [activeTab, setActiveTab] = useState<'overview' | 'characters' | 'encounters' | 'stories'>('overview');
+
+    // Inicializar aba via URL ou default 'overview'
+    const searchParams = useSearchParams();
+    const [activeTab, setActiveTab] = useState<'overview' | 'characters' | 'encounters' | 'stories'>(
+        (searchParams.get('tab') as any) || 'overview'
+    );
+
+    // Sincronizar URL quando aba mudar
+    useEffect(() => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', activeTab);
+        window.history.replaceState({}, '', url.toString());
+    }, [activeTab]);
 
     // Story States
     const [showStoryModal, setShowStoryModal] = useState(false);
@@ -367,15 +385,20 @@ export default function GMPage() {
         }
     }
 
-    async function handleGenerateNextAct(e: React.FormEvent) {
-        e.preventDefault();
-        if (!activeStoryId) return;
+    async function handleGenerateNextAct(e: React.FormEvent | null, specificStoryId?: string, inputOverride?: string) {
+        if (e) e.preventDefault();
+
+        const targetStoryId = specificStoryId || activeStoryId;
+        const input = inputOverride || nextActInput;
+
+        if (!targetStoryId) return;
+
         setGeneratingAct(true);
         try {
-            const res = await fetch(`/api/stories/${activeStoryId}/acts/generate`, {
+            const res = await fetch(`/api/stories/${targetStoryId}/acts/generate`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ gmInput: nextActInput }),
+                body: JSON.stringify({ gmInput: input }),
             });
             if (res.ok) {
                 setShowNextActModal(false);
@@ -989,13 +1012,30 @@ export default function GMPage() {
                                                             <div>
                                                                 <div className="flex items-center gap-2">
                                                                     <h4 className="font-bold text-lg">{p.name}</h4>
+                                                                    {!p.isNPC && (
+                                                                        <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 border border-blue-500/40 rounded text-blue-300 font-mono">
+                                                                            Lv {room?.characterRooms.find(cr => cr.character.name === p.name)?.roomStats?.level || 1}
+                                                                        </span>
+                                                                    )}
+                                                                    {p.isNPC && (
+                                                                        <span className="text-xs px-1.5 py-0.5 bg-neutral-700/50 border border-neutral-600 rounded text-neutral-400 font-mono">
+                                                                            Lv {p.level || 1}
+                                                                        </span>
+                                                                    )}
                                                                     {currentTurn?.id === p.id && (
                                                                         <span className="text-xs px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded-full animate-pulse">
                                                                             SUA VEZ
                                                                         </span>
                                                                     )}
                                                                 </div>
-                                                                <p className="text-xs text-neutral-500">Iniciativa: {p.initiative}</p>
+                                                                <div className="flex justify-between items-center w-full mt-1">
+                                                                    <p className="text-xs text-neutral-500">Iniciativa: {p.initiative}</p>
+                                                                    {!p.isNPC && (
+                                                                        <p className="text-[10px] text-blue-400 font-mono bg-blue-500/10 px-1.5 py-0.5 rounded">
+                                                                            XP: {room?.characterRooms.find(cr => cr.character.name === p.name)?.roomStats?.xp || 0}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                             <div className="flex gap-2">
                                                                 <button
@@ -1098,6 +1138,12 @@ export default function GMPage() {
                                                             <div>
                                                                 <div className="flex items-center gap-2">
                                                                     <h4 className="font-bold text-lg">{p.name}</h4>
+                                                                    <span className="text-xs px-1.5 py-0.5 bg-neutral-700/50 border border-neutral-600 rounded text-neutral-400 font-mono">
+                                                                        Lv {p.level || 1}
+                                                                    </span>
+                                                                    <span className="text-xs px-1.5 py-0.5 bg-yellow-900/40 border border-yellow-700/50 rounded text-yellow-500 font-mono" title="XP Recompensado">
+                                                                        ✨ {(p.level || 1) * (p.level || 1) * 10} XP
+                                                                    </span>
                                                                     {currentTurn?.id === p.id && (
                                                                         <span className="text-xs px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded-full animate-pulse">
                                                                             SUA VEZ
@@ -1306,8 +1352,18 @@ export default function GMPage() {
                                     <div className="mt-8 flex justify-center">
                                         <button
                                             onClick={() => {
-                                                setActiveStoryId(story.id);
-                                                setShowNextActModal(true);
+                                                const sortedActs = [...story.acts].sort((a, b) => a.order - b.order);
+                                                const lastAct = sortedActs[sortedActs.length - 1];
+
+                                                // Se já tem acontecimentos salvos, gerar direto
+                                                if (lastAct && lastAct.events && lastAct.events.trim().length > 0) {
+                                                    if (confirm(`Gerar próximo ato usando os acontecimentos salvos de "${lastAct.title}"?`)) {
+                                                        handleGenerateNextAct(null, story.id, lastAct.events);
+                                                    }
+                                                } else {
+                                                    setActiveStoryId(story.id);
+                                                    setShowNextActModal(true);
+                                                }
                                             }}
                                             className="group relative px-8 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl font-bold text-white shadow-lg overflow-hidden transition-all hover:scale-105 active:scale-95"
                                         >

@@ -57,6 +57,16 @@ export async function POST(request: Request) {
                 const finalHp = Math.floor(template.hp * scalingFactor);
                 const finalMana = Math.floor((template.mana || 0) * scalingFactor);
 
+                // Escalar atributos
+                const finalForca = Math.floor((template.forca || 0) * scalingFactor);
+                const finalDestreza = Math.floor((template.destreza || 0) * scalingFactor);
+                const finalInteligencia = Math.floor((template.inteligencia || 0) * scalingFactor);
+                const finalDefesa = Math.floor((template.defense || 0) * scalingFactor);
+                const finalVelocidade = Math.floor((template.velocidade || 0) * scalingFactor);
+
+                // Calcular XP Reward baseada no nível final
+                const xpReward = targetLevel * targetLevel * 10;
+
                 npcParticipants.push({
                     name: `${template.name} ${i + 1}`,
                     hp: finalHp,
@@ -67,7 +77,14 @@ export async function POST(request: Request) {
                     isNPC: true,
                     statusEffects: [],
                     // CRÍTICO: Usar o level alvo para cálculo de XP
-                    level: targetLevel
+                    level: targetLevel,
+                    // Stats Escalados
+                    forca: finalForca,
+                    destreza: finalDestreza,
+                    inteligencia: finalInteligencia,
+                    defesa: finalDefesa,
+                    velocidade: finalVelocidade,
+                    xpReward: xpReward // Salvar XP no banco
                 });
             }
         }

@@ -60,8 +60,16 @@ export async function GET(
                     mana: p.mana,
                     maxMana: p.maxMana,
                     initiative: p.initiative,
+
                     isNPC: p.isNPC,
-                    statusEffects: p.statusEffects
+                    statusEffects: p.statusEffects,
+                    // Dados adicionais para Client
+                    level: p.level,
+                    forca: (p as any).forca,
+                    destreza: (p as any).destreza,
+                    inteligencia: (p as any).inteligencia,
+                    defesa: (p as any).defesa,
+                    velocidade: (p as any).velocidade
                 }))
             } : null,
             timestamp: Date.now()
