@@ -44,6 +44,7 @@ export default function CharactersPage() {
     // Preview de avatar
     const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
     const [generatingPreview, setGeneratingPreview] = useState(false);
+    const [imageLoading, setImageLoading] = useState(false);
 
     // Habilidades selecionadas
     const [selectedAbilities, setSelectedAbilities] = useState<any[]>([]);
@@ -322,6 +323,7 @@ export default function CharactersPage() {
         }
 
         setGeneratingPreview(true);
+        setImageLoading(true); // Preparar para carregamento da imagem
         setPreviewAvatar(null); // Limpar anterior para mostrar loading
         try {
             // Chamar API para gerar preview
@@ -854,17 +856,21 @@ export default function CharactersPage() {
                             {/* Preview de Avatar para Edição */}
                             <div className="bg-gradient-to-r from-indigo-900/20 to-purple-900/20 border border-indigo-500/30 rounded-xl p-4">
                                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
-                                    <div className="flex-shrink-0">
-                                        {previewAvatar && !generatingPreview ? (
+                                    <div className="flex-shrink-0 relative w-32 h-32">
+                                        {(generatingPreview || (previewAvatar && imageLoading)) && (
+                                            <div className="absolute inset-0 z-10 bg-neutral-800/50 rounded-xl border-2 border-dashed border-indigo-500/30 flex items-center justify-center backdrop-blur-sm">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                                            </div>
+                                        )}
+
+                                        {previewAvatar ? (
                                             <img
                                                 src={previewAvatar}
                                                 alt="Novo Avatar"
-                                                className="w-32 h-32 rounded-xl object-cover border-2 border-indigo-500/50"
+                                                onLoad={() => setImageLoading(false)}
+                                                onError={() => setImageLoading(false)}
+                                                className={`w-32 h-32 rounded-xl object-cover border-2 border-indigo-500/50 transition-opacity duration-300 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
                                             />
-                                        ) : generatingPreview ? (
-                                            <div className="w-32 h-32 rounded-xl bg-neutral-800/50 border-2 border-dashed border-indigo-500/30 flex items-center justify-center">
-                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
-                                            </div>
                                         ) : editingChar?.avatarUrl ? (
                                             <img
                                                 src={editingChar.avatarUrl}
